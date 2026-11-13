@@ -12,14 +12,16 @@ const VIEW_SCALE = 600;
 
 const CAM_MIN_ZOOM = 0;
 const CAM_MAX_ZOOM = 100;
-const CAM_MOVE_SPEED = 100;
+const CAM_MOVE_SPEED = 20;
 const CAM_ZOOM_SPEED = 0.1;
 const CAMERA_ROT_SPEED = 0.01;
 
 const canvas3DContext = canvas3D.getContext("2d");
 const overlayContext = canvasOverlay.getContext("2d");
 const screenImage = canvas3DContext.createImageData(DISPLAY_WIDTH, DISPLAY_HEIGHT);
+
 const imageData = screenImage.data;
+const zBuffer = new Float32Array(DISPLAY_WIDTH * DISPLAY_HEIGHT);
 const keyData = [];
 
 let triangles = [
@@ -98,16 +100,18 @@ function clearDisplay() {
         imageData[i + 2] = 0;
         imageData[i + 3] = 255;
     }
+
+    zBuffer.fill(-Infinity);
 }
 
 function gameLoop() {
     dt = Math.max((performance.now() - lastFrameTime) / 1000, 0.001);
+    lastFrameTime = performance.now();
     clearDisplay();
     mainFunction();
     render();
     canvas3DContext.putImageData(screenImage, 0, 0);
     updateOverlay();
-    lastFrameTime = performance.now();
     requestAnimationFrame(gameLoop);
 }
 
@@ -171,16 +175,29 @@ function render() {
         const minY = Math.min(triangle[3][1], triangle[4][1], triangle[5][1]);
         const maxY = Math.max(triangle[3][1], triangle[4][1], triangle[5][1]);
 
-        for (let i = Math.floor(minX); i < Math.floor(maxX); i++) {
-            for (let j = Math.floor(minY); j < Math.floor(maxY); j++) {
-                setPixel2(i, j, triangle[6][0], triangle[6][1], triangle[6][2]);
+        for (let i = Math.max(Math.floor(minX), 0); i < Math.min(Math.ceil(maxX), DISPLAY_WIDTH); i++) {
+            for (let j = Math.max(Math.floor(minY), 0); j < Math.min(Math.ceil(maxY), DISPLAY_HEIGHT); j++) {
+                const det = (triangle[4][1] - triangle[5][1]) * (triangle[3][0] - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (triangle[3][1] - triangle[5][1]);
+                const a = ((triangle[4][1] - triangle[5][1]) * (i - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (j - triangle[5][1])) / det;
+                const b = ((triangle[5][1] - triangle[3][1]) * (i - triangle[5][0]) + (triangle[3][0] - triangle[5][0]) * (j - triangle[5][1])) / det;
+                const c = 1 - a - b;
+
+                if (a >= 0 && b >= 0 && c >= 0) {
+                    const invZ = a / triangle[3][2] + b / triangle[4][2] + c / triangle[5][2];
+                    const pA = a / triangle[3][2] / invZ;
+                    const pB = b / triangle[4][2] / invZ;
+                    const pC = c / triangle[5][2] / invZ;
+                    const pZ = 1 / invZ;
+                    const index = j * DISPLAY_WIDTH + i;
+                    
+                    if (pZ > zBuffer[index]) {
+                        zBuffer[index] = pZ;
+                        setPixel(i, j, pA * 255, pB * 255, pC * 255);
+                    }
+                    
+                }
             }
         }
-
-
-        setPixel2(Math.floor(triangle[3][0]), Math.floor(triangle[3][1]), 255, 255, 255);
-        setPixel2(Math.floor(triangle[4][0]), Math.floor(triangle[4][1]), 255, 255, 255);
-        setPixel2(Math.floor(triangle[5][0]), Math.floor(triangle[5][1]), 255, 255, 255);
     }
 }
 
