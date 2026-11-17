@@ -55,11 +55,11 @@ let daySky = await new Sky("./assets/day_sky", 20).load();
 let nightSky = await new Sky("./assets/night_sky", 0).load();
 
 let materials = [
-    await new Material("./assets/materials/rocky_grass").load(),
-    //await new Texture("./assets/materials/rocky_grass").load(),
-    //await new Texture("./assets/materials/diamond_plate").load(),
-    //await new Texture("./assets/materials/rock").load(),
-    //await new Texture("./assets/materials/pebbles").load()
+    await new Material("./assets/materials/rocky_grass", 8).load(),
+    //await new Texture("./assets/materials/rocky_grass", 8).load(),
+    //await new Texture("./assets/materials/diamond_plate", 4).load(),
+    //await new Texture("./assets/materials/rock", 8).load(),
+    //await new Texture("./assets/materials/pebbles", 4).load()
 ]
 
 let triangles = [
@@ -95,6 +95,18 @@ function normValue3(vector) {
     let magnitude = Math.hypot(vector[0], vector[1], vector[2]) || 1;
 
     return [vector[0] / magnitude, vector[1] / magnitude, vector[2] / magnitude];
+}
+
+function dotValue3(v1, v2) {
+    return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+}
+
+function crossValue3(u, v) {
+    const nx = u[1] * v[2] - u[2] * v[1];
+    const ny = u[2] * v[0] - u[0] * v[2];
+    const nz = u[0] * v[1] - u[1] * v[0];
+
+    return normValue3([nx, ny, nz]);
 }
 
 function mulValue3(vector, scalar) {
@@ -167,30 +179,135 @@ function clearDisplay() {
     zBuffer.fill(-Infinity);
 }
 
-function projectPoint(point, cf) {
-    const localPoint = cf.pointToLocalSpace(...point);
-    const x = DISPLAY_WIDTH / 2 - localPoint[0] / localPoint[2] * VIEW_SCALE;
-    const y = DISPLAY_HEIGHT / 2 + localPoint[1] / localPoint[2] * VIEW_SCALE;
-    const z = localPoint[2];
+function updateTriangleUVs() {
+    for (const triangle of triangles) {
+        const cx = (triangle[0] + triangle[3] + triangle[6]) / 3;
+        const cy = (triangle[1] + triangle[4] + triangle[7]) / 3;
+        const cz = (triangle[2] + triangle[5] + triangle[8]) / 3;
+        const ux = triangle[3] - triangle[0];
+        const uy = triangle[4] - triangle[1];
+        const uz = triangle[5] - triangle[2];
+        const vx = triangle[6] - triangle[0];
+        const vy = triangle[7] - triangle[1];
+        const vz = triangle[8] - triangle[2];
+        const normal = crossValue3([ux, uy, uz], [vx, vy, vz]);
+        const xAxisDir = normValue3([ux, uy, uz]);
+        const yAxisDir = crossValue3(normal, xAxisDir);
+        const rel1 = [triangle[0] - cx, triangle[1] - cy, triangle[2] - cz];
+        const rel2 = [triangle[3] - cx, triangle[4] - cy, triangle[5] - cz];
+        const rel3 = [triangle[6] - cx, triangle[7] - cy, triangle[8] - cz];
+        const x1 = dotValue3(rel1, xAxisDir);
+        const y1 = dotValue3(rel1, yAxisDir);
+        const x2 = dotValue3(rel2, xAxisDir);
+        const y2 = dotValue3(rel2, yAxisDir);
+        const x3 = dotValue3(rel3, xAxisDir);
+        const y3 = dotValue3(rel3, yAxisDir);
 
-    return [x, y, z];
+        triangle[10] = x1;
+        triangle[11] = y1;
+        triangle[12] = x2;
+        triangle[13] = y2;
+        triangle[14] = x3;
+        triangle[15] = y3;
+    }
+}
+
+function clipTriangleNear(p1, p2, p3, planeZ) {
+    const inputs = [p1, p2, p3];
+    const output = [];
+
+    for (let i = 0; i < inputs.length; i++) {
+        const current = inputs[i];
+        const previous = inputs[(i + inputs.length - 1) % inputs.length];
+        const currIn = current[0][2] < planeZ;
+        const prevIn = previous[0][2] < planeZ;
+
+        if (currIn && prevIn) {
+            output.push(current);
+
+        }
+        else if (prevIn && !currIn) {
+            output.push(intersectNearPlane(previous, current, planeZ));
+
+        }
+        else if (!prevIn && currIn) {
+            output.push(intersectNearPlane(previous, current, planeZ));
+            output.push(current);
+        }
+    }
+
+    return output;
+}
+
+function intersectNearPlane(a, b, planeZ) {
+    const t = (planeZ - a[0][2]) / (b[0][2] - a[0][2]);
+    const intersectLocal = [a[0][0] + (b[0][0] - a[0][0]) * t, a[0][1] + (b[0][1] - a[0][1]) * t, planeZ];
+    const intersectWorld = [a[1][0] + (b[1][0] - a[1][0]) * t, a[1][1] + (b[1][1] - a[1][1]) * t, a[1][2] + (b[1][2] - a[1][2]) * t];
+    const intersectUV = [a[2][0] + (b[2][0] - a[2][0]) * t, a[2][1] + (b[2][1] - a[2][1]) * t];
+
+    return [intersectLocal, intersectWorld, intersectUV];
+}
+
+function toLocalSpace(point, cf) {
+    const cfv = cf.values;
+    const tx = point[0] - cfv[0];
+    const ty = point[1] - cfv[1];
+    const tz = point[2] - cfv[2];
+    const localX = cfv[3] * tx + cfv[6] * ty + cfv[9] * tz;
+    const localY = cfv[4] * tx + cfv[7] * ty + cfv[10] * tz;
+    const localZ = cfv[5] * tx + cfv[8] * ty + cfv[11] * tz;
+
+    return [localX, localY, localZ];
+}
+
+function projectPoint(lp) {
+    const px = DISPLAY_WIDTH / 2 - lp[0] / lp[2] * VIEW_SCALE;
+    const py = DISPLAY_HEIGHT / 2 + lp[1] / lp[2] * VIEW_SCALE;
+    const pz = lp[2];
+
+    return [px, py, pz];
 }
 
 function renderTriangles() {
     const transformedTriangles = [];
 
     for (const triangle of triangles) {
+        const planeZ = -MIN_Z;
         const texture = triangle[9];
-        const uv = [triangle[10], triangle[11], triangle[12], triangle[13], triangle[14], triangle[15]];
-        const p1 = [triangle[0], triangle[1], triangle[2]];
-        const p2 = [triangle[3], triangle[4], triangle[5]];
-        const p3 = [triangle[6], triangle[7], triangle[8]];
-        const projP1 = projectPoint(p1, cameraCF);
-        const projP2 = projectPoint(p2, cameraCF);
-        const projP3 = projectPoint(p3, cameraCF);
+        const uv1 = [triangle[10], triangle[11]];
+        const uv2 = [triangle[12], triangle[13]];
+        const uv3 = [triangle[14], triangle[15]];
+        const wp1 = [triangle[0], triangle[1], triangle[2]];
+        const wp2 = [triangle[3], triangle[4], triangle[5]];
+        const wp3 = [triangle[6], triangle[7], triangle[8]];
+        const lp1 = toLocalSpace(wp1, cameraCF);
+        const lp2 = toLocalSpace(wp2, cameraCF);
+        const lp3 = toLocalSpace(wp3, cameraCF);
 
-        if (projP1[2] < -MIN_Z && projP2[2] < -MIN_Z && projP3[2] < -MIN_Z) {
-            transformedTriangles.push([p1, p2, p3, projP1, projP2, projP3, texture, uv]);
+        if (lp1[2] > planeZ && lp2[2] > planeZ && lp3[2] > planeZ) {
+            continue;
+        }
+
+        if (lp1[2] <= planeZ && lp2[2] <= planeZ && lp3[2] <= planeZ) {
+            const proj1 = projectPoint(lp1);
+            const proj2 = projectPoint(lp2);
+            const proj3 = projectPoint(lp3);
+
+            transformedTriangles.push([wp1, wp2, wp3, proj1, proj2, proj3, uv1, uv2, uv3, texture]);
+        }
+        else {
+            const clipped = clipTriangleNear([lp1, wp1, uv1], [lp2, wp2, uv2], [lp3, wp3, uv3], planeZ);
+
+            for (let i = 1; i < clipped.length - 1; i++) {
+                const c1 = clipped[0];
+                const c2 = clipped[i];
+                const c3 = clipped[i + 1];
+                const proj1 = projectPoint(c1[0]);
+                const proj2 = projectPoint(c2[0]);
+                const proj3 = projectPoint(c3[0]);
+
+                transformedTriangles.push([c1[1], c2[1], c3[1], proj1, proj2, proj3, c1[2], c2[2], c3[2], texture]);
+            }
         }
     }
 
@@ -203,21 +320,21 @@ function renderTriangles() {
         const x1 = Math.min(Math.ceil(maxX), DISPLAY_WIDTH);
         const y0 = Math.max(Math.floor(minY), 0);
         const y1 = Math.min(Math.ceil(maxY), DISPLAY_HEIGHT);
-        const u1 = 0;
-        const v1 = 0;
-        const u2 = 4;
-        const v2 = 0;
-        const u3 = 0;
-        const v3 = 4;
-        const texture = materials[0];
-        const texDiffMap = texture.diff.data;
-        const texNormMap = texture.nor_gl.data;
+        const material = materials[triangle[9]];
+        const texDiffMap = material.diff.data;
+        const texNormMap = material.nor_gl.data;
         const edge1X = triangle[1][0] - triangle[0][0];
         const edge1Y = triangle[1][1] - triangle[0][1];
         const edge1Z = triangle[1][2] - triangle[0][2];
         const edge2X = triangle[2][0] - triangle[0][0];
         const edge2Y = triangle[2][1] - triangle[0][1];
         const edge2Z = triangle[2][2] - triangle[0][2];
+        const u1 = triangle[6][0] / material.scale;
+        const v1 = triangle[6][1] / material.scale;
+        const u2 = triangle[7][0] / material.scale;
+        const v2 = triangle[7][1] / material.scale;
+        const u3 = triangle[8][0] / material.scale;
+        const v3 = triangle[8][1] / material.scale;
         const du1 = u2 - u1;
         const dv1 = v2 - v1;
         const du2 = u3 - u1;
@@ -270,9 +387,9 @@ function renderTriangles() {
                         const pC = 1 - pA - pB;
                         const u = pA * u1 + pB * u2 + pC * u3;
                         const v = pA * v1 + pB * v2 + pC * v3;
-                        const sampleX = Math.floor((u % 1) * (texture.width - 1));
-                        const sampleY = Math.floor((v % 1) * (texture.height - 1));
-                        const sampleIndex = (sampleY * texture.width + sampleX) * 4;
+                        const sampleX = Math.floor((u - Math.floor(u)) * material.width);
+                        const sampleY = Math.floor((v - Math.floor(v)) * material.height);
+                        const sampleIndex = (sampleY * material.width + sampleX) * 4;
                         const texR = texDiffMap[sampleIndex];
                         const texG = texDiffMap[sampleIndex + 1];
                         const texB = texDiffMap[sampleIndex + 2];
@@ -492,6 +609,7 @@ function nextFrame() {
     lastFrameTime = performance.now();
     mainUpdate(dt);
     clearDisplay();
+    updateTriangleUVs();
     renderTriangles();
     renderSky();
     canvas3DContext.putImageData(screenImage, 0, 0);

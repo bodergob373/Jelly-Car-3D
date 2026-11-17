@@ -17,9 +17,9 @@ export class Material {
         "jpeg"
     ];
 
-    constructor(path) {
+    constructor(path, scale = 1) {
         this.path = path;
-
+        this.scale = scale;
         this.width = 0;
         this.height = 0;
     }

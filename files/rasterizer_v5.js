@@ -205,10 +205,10 @@ function renderTriangles() {
         const y1 = Math.min(Math.ceil(maxY), DISPLAY_HEIGHT);
         const u1 = 0;
         const v1 = 0;
-        const u2 = 4;
+        const u2 = 1;
         const v2 = 0;
         const u3 = 0;
-        const v3 = 4;
+        const v3 = 1;
         const texture = materials[0];
         const texDiffMap = texture.diff.data;
         const texNormMap = texture.nor_gl.data;
