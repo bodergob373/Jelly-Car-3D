@@ -1,6 +1,7 @@
 import { CFrame } from "./cframe.js";
 import { Enum } from "./enums.js";
-import { Texture } from "./texture.js";
+import { Material } from "./material.js";
+import { Sky } from "./sky.js";
 
 const canvas3D = document.getElementById("canvas3D");
 const canvasOverlay = document.getElementById("canvasOverlay");
@@ -25,15 +26,38 @@ const imageData = screenImage.data;
 const zBuffer = new Float32Array(DISPLAY_WIDTH * DISPLAY_HEIGHT);
 const keyData = [];
 
-let ambientIntensity = 0.6;
+const SUN_I_ELEV_START = -0.2;
+const SUN_I_ELEV_END = 0.2;
+const MAX_SUNLIGHT_INTENSITY = 1.2;
+const AMBIENT_INTENSITY_POW = 2;
+const MIN_AMBIENT_INTENSITY = 0.3;
+const MAX_AMBIENT_INTENSITY = 0.6;
+const AMBIENT_COLOR_CURVE = [
+    [-1, [200, 220, 255]],
+    [-0.2, [180, 200, 255]],
+    [-0.1, [255, 180, 120]],
+    [0.2, [255, 220, 140]],
+    [1, [200, 240, 255]]
+];
+
+let sunlightIntensity = 0;
+let sunlightDir = [0, 0, 0];
+let sunlightColor = [255, 250, 240];
+let ambientIntensity = 0;
 let ambientColor = [255, 255, 255];
 
-let sunlightIntensity = 0.8;
-let sunlightDir = [1, -1, 1];
-let sunlightColor = [255, 240, 220];
+let dayLength = 30;
+let geographicLatitude = 40;
+let timeOfDay = 0.4;
 
-let textures = {
-    rocky_grass: await new Texture("./textures/rocky_grass").load()
+let sky = new Sky("./assets/sky", 1);
+
+let materials = {
+    //"rocky_grass": await new Texture("./assets/materials/rocky_grass").load(),
+    //"diamond_plate": await new Texture("./assets/materials/diamond_plate").load(),
+    //"rock": await new Texture("./assets/materials/rock").load(),
+    //"pebbles": await new Texture("./assets/materials/pebbles").load()
+    "default_texture": await new Material("./assets/materials/pebbles").load(),
 }
 
 let triangles = [
@@ -48,7 +72,7 @@ let triangles = [
     [-5, -5, -180, -5, 5, -180, 5, -5, -140, 250, 100, 150],
     [-5, -5, -190, -5, 5, -190, 5, -5, -145, 250, 50, 200],
     [-5, -5, -200, -5, 5, -200, 5, -5, -150, 250, 0, 250],
-
+    
     [-5, -5, -5, 5, -5, -5, -5, -5, 5, 140, 180, 80],
     [5, -5, 5, 5, -5, -5, -5, -5, 5, 140, 180, 80],
     [-5, 5, -5, 5, 5, -5, -5, 5, 5, 140, 180, 80],
@@ -60,7 +84,7 @@ let triangles = [
     [-5, -5, -5, 5, -5, -5, -5, 5, -5, 140, 180, 80],
     [5, 5, -5, 5, -5, -5, -5, 5, -5, 140, 180, 80],
     [-5, -5, 5, 5, -5, 5, -5, 5, 5, 140, 180, 80],
-    [5, 5, 5, 5, -5, 5, -5, 5, 5, 140, 180, 80],
+    [5, 5, 5, 5, -5, 5, -5, 5, 5, 140, 180, 80]
 ];
 
 let lastFrameTime = performance.now();
@@ -76,81 +100,83 @@ let cameraYaw = 0;
 let cameraCF = new CFrame();
 let cameraZoom = 0;
 
-function normVector3(vector) {
+function normValue3(vector) {
     let magnitude = Math.hypot(vector[0], vector[1], vector[2]) || 1;
 
     return [vector[0] / magnitude, vector[1] / magnitude, vector[2] / magnitude];
 }
 
-function mulVector3(vector, scalar) {
+function mulValue3(vector, scalar) {
     return [vector[0] * scalar, vector[1] * scalar, vector[2] * scalar];
 }
 
-function addVector3(vector1, vector2) {
+function addValue3(vector1, vector2) {
     return [vector1[0] + vector2[0], vector1[1] + vector2[1], vector1[2] + vector2[2]];
 }
 
-function subVector3(vector1, vector2) {
+function subValue3(vector1, vector2) {
     return [vector1[0] - vector2[0], vector1[1] - vector2[1], vector1[2] - vector2[2]];
 }
 
-function setPixel(x, y, r, g, b) {
-    if (x < 0 || x >= DISPLAY_WIDTH || y < 0 || y >= DISPLAY_HEIGHT) {
-        return;
+function interpolateValue3(points, t) {
+    if (t <= points[0][0]) {
+        return points[0][1];
     }
 
-    const i = (y * DISPLAY_WIDTH + x) * 4;
+    if (t >= points[points.length - 1][0]) {
+        return points[points.length - 1][1];
+    }
 
-    imageData[i] = r;
-    imageData[i + 1] = g;
-    imageData[i + 2] = b;
-    imageData[i + 3] = 255;
+    let i = 0;
+
+    while (points[i + 1][0] < t) i++;
+
+    const [p0, c0] = points[i];
+    const [p1, c1] = points[i + 1];
+    const u = (1 - Math.cos((t - p0) / (p1 - p0) * Math.PI)) / 2;
+
+    return [c0[0] + (c1[0] - c0[0]) * u, c0[1] + (c1[1] - c0[1]) * u, c0[2] + (c1[2] - c0[2]) * u];
 }
 
-function sampleTextureTest(u, v) {
-    const gridSize = 10;
-
-    u = u % 1;
-    v = v % 1;
-
-    const x = Math.floor(u * (gridSize));
-    const y = Math.floor(v * (gridSize));
-
-    const value = ((Math.round(x) + Math.round(y)) % 2) * 200;
-
-    return [value + 55, value + 55, value + 55];
-}
-
-function sampleTexture(texture, u, v) {
+function sampleTexture(textureName, u, v) {
+    const texture = materials[textureName];
+    const diff = texture.diff.data;
     const x = Math.floor((u % 1) * (texture.width - 1));
     const y = Math.floor((v % 1) * (texture.height - 1));
     const index = (y * texture.width + x) * 4;
 
-    return [texture.data[index], texture.data[index + 1], texture.data[index + 2]];
+    return [diff[index], diff[index + 1], diff[index + 2]];
 }
 
-function clearDisplay() {
-    for (let i = 0; i < imageData.length; i += 4) {
-        imageData[i] = 180;
-        imageData[i + 1] = 220;
-        imageData[i + 2] = 240;
-        imageData[i + 3] = 255;
-    }
-
-    zBuffer.fill(-Infinity);
-}
-
-function gameLoop() {
+function nextFrame() {
     dt = Math.max((performance.now() - lastFrameTime) / 1000, 0.001);
     lastFrameTime = performance.now();
-    sunlightDir = [Math.cos(performance.now() * 0.001), -1, Math.sin(performance.now() * 0.001)];
-    sunlightDir = normVector3(sunlightDir);
+    mainUpdate(dt);
     clearDisplay();
-    updateCamera();
     render();
     canvas3DContext.putImageData(screenImage, 0, 0);
     updateOverlay();
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(nextFrame);
+}
+
+function updateLighting() {
+    const latitudeRad = geographicLatitude * Math.PI / 180;
+    const hourAngle = (timeOfDay - 0.5) * Math.PI * 2;
+    const elevation = Math.asin(Math.cos(latitudeRad) * Math.cos(hourAngle));
+    const azimuth = Math.atan2(Math.sin(hourAngle), Math.cos(hourAngle) * Math.sin(latitudeRad));
+    const sunlightIntensityModifier = Math.max(1 - Math.pow(Math.min((elevation - SUN_I_ELEV_START) / (SUN_I_ELEV_END - SUN_I_ELEV_START) - 1, 0), 2), 0);
+    const ambientIntensityModifier = Math.pow((elevation + 1) / 2, AMBIENT_INTENSITY_POW);
+
+    sunlightDir = [Math.cos(elevation) * Math.sin(azimuth), Math.sin(elevation), Math.cos(elevation) * Math.cos(azimuth)];
+    sunlightIntensity = MAX_SUNLIGHT_INTENSITY * sunlightIntensityModifier;
+    ambientIntensity = ambientIntensityModifier * (MAX_AMBIENT_INTENSITY - MIN_AMBIENT_INTENSITY) + MIN_AMBIENT_INTENSITY;
+    ambientColor = interpolateValue3(AMBIENT_COLOR_CURVE, elevation);
+}
+
+function mainUpdate(dt) {
+    timeOfDay = (timeOfDay + dt / dayLength) % 1;
+    updateLighting();
+    updateCamera();
 }
 
 function updateCamera() {
@@ -165,11 +191,22 @@ function updateCamera() {
     cameraMovementVector[1] = (keyData[" "] & 1) - (keyData["Shift"] & 1);
     cameraMovementVector[2] = (keyData["s"] & 1) - (keyData["w"] & 1);
     cameraMovementVector = cameraRot.pointToWorldSpace(...cameraMovementVector);
-    cameraMovementVector = mulVector3(normVector3(cameraMovementVector), CAM_MOVE_SPEED * dt);
-    cameraFocus = addVector3(cameraFocus, cameraMovementVector);
+    cameraMovementVector = mulValue3(normValue3(cameraMovementVector), CAM_MOVE_SPEED * dt);
+    cameraFocus = addValue3(cameraFocus, cameraMovementVector);
     cameraCF = new CFrame(...cameraFocus).mult(cameraRot).mult(new CFrame(0, 0, cameraZoom));
     mouseDelta[0] = 0;
     mouseDelta[1] = 0;
+}
+
+function clearDisplay() {
+    for (let i = 0; i < imageData.length; i += 4) {
+        imageData[i] = 180;
+        imageData[i + 1] = 220;
+        imageData[i + 2] = 240;
+        imageData[i + 3] = 255;
+    }
+
+    zBuffer.fill(-Infinity);
 }
 
 function updateOverlay() {
@@ -178,7 +215,7 @@ function updateOverlay() {
     overlayContext.font = "20px monospace";
     overlayContext.fillText("FPS: " + Math.round(1 / dt), 10, DISPLAY_HEIGHT - 10);
     overlayContext.fillText("Camera Position: " + cameraCF.position, 10, 20);
-    overlayContext.fillText("Camera Zoom: " + cameraZoom, 10, 40);
+    overlayContext.fillText("Time of Day: " + (Math.round(timeOfDay * 24 * 100) / 100 - 12), 10, 40);
 }
 
 function projectPoint(point, cf) {
@@ -212,54 +249,78 @@ function render() {
         const maxX = Math.max(triangle[3][0], triangle[4][0], triangle[5][0]);
         const minY = Math.min(triangle[3][1], triangle[4][1], triangle[5][1]);
         const maxY = Math.max(triangle[3][1], triangle[4][1], triangle[5][1]);
+        const u1 = 0;
+        const v1 = 0;
+        const u2 = 1;
+        const v2 = 0;
+        const u3 = 0;
+        const v3 = 1;
+        const texture = materials["default_texture"];
+        const texDiff = texture.diff.data;
+        const texNorm = texture.nor_gl.data;
+        const edge1X = triangle[1][0] - triangle[0][0];
+        const edge1Y = triangle[1][1] - triangle[0][1];
+        const edge1Z = triangle[1][2] - triangle[0][2];
+        const edge2X = triangle[2][0] - triangle[0][0];
+        const edge2Y = triangle[2][1] - triangle[0][1];
+        const edge2Z = triangle[2][2] - triangle[0][2];
+        const du1 = u2 - u1;
+        const dv1 = v2 - v1;
+        const du2 = u3 - u1;
+        const dv2 = v3 - v1;
+        const f = 1 / (du1 * dv2 - du2 * dv1);
+        let tan = normValue3([f * (dv2 * edge1X - dv1 * edge2X), f * (dv2 * edge1Y - dv1 * edge2Y), f * (dv2 * edge1Z - dv1 * edge2Z)]);
+        let bitan = normValue3([f * (-du2 * edge1X + du1 * edge2X), f * (-du2 * edge1Y + du1 * edge2Y), f * (-du2 * edge1Z + du1 * edge2Z)]);
         const wu = [triangle[1][0] - triangle[0][0], triangle[1][1] - triangle[0][1], triangle[1][2] - triangle[0][2]];
         const wv = [triangle[2][0] - triangle[0][0], triangle[2][1] - triangle[0][1], triangle[2][2] - triangle[0][2]];
+        let triangleNormal = normValue3([wu[1] * wv[2] - wu[2] * wv[1], wu[2] * wv[0] - wu[0] * wv[2], wu[0] * wv[1] - wu[1] * wv[0]]);
+
+
+        if ((triangle[4][0] - triangle[3][0]) * (triangle[5][1] - triangle[3][1]) - (triangle[4][1] - triangle[3][1]) * (triangle[5][0] - triangle[3][0]) > 0) {
+            triangleNormal = mulValue3(triangleNormal, -1);
+            tan = mulValue3(tan, -1);
+            bitan = mulValue3(bitan, -1);
+        }
 
         for (let i = Math.max(Math.floor(minX), 0); i < Math.min(Math.ceil(maxX), DISPLAY_WIDTH); i++) {
             for (let j = Math.max(Math.floor(minY), 0); j < Math.min(Math.ceil(maxY), DISPLAY_HEIGHT); j++) {
                 const det = (triangle[4][1] - triangle[5][1]) * (triangle[3][0] - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (triangle[3][1] - triangle[5][1]);
-                const a = ((triangle[4][1] - triangle[5][1]) * (i - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (j - triangle[5][1])) / det;
-                const b = ((triangle[5][1] - triangle[3][1]) * (i - triangle[5][0]) + (triangle[3][0] - triangle[5][0]) * (j - triangle[5][1])) / det;
-                const c = 1 - a - b;
+                const baryA = ((triangle[4][1] - triangle[5][1]) * (i - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (j - triangle[5][1])) / det;
+                const baryB = ((triangle[5][1] - triangle[3][1]) * (i - triangle[5][0]) + (triangle[3][0] - triangle[5][0]) * (j - triangle[5][1])) / det;
+                const baryC = 1 - baryA - baryB;
 
-                if (a >= 0 && b >= 0 && c >= 0) {
-                    const invZ = a / triangle[3][2] + b / triangle[4][2] + c / triangle[5][2];
-                    const pA = a / triangle[3][2] / invZ;
-                    const pB = b / triangle[4][2] / invZ;
-                    const pC = c / triangle[5][2] / invZ;
+                if (baryA >= 0 && baryB >= 0 && baryC >= 0) {
+                    const invZ = baryA / triangle[3][2] + baryB / triangle[4][2] + baryC / triangle[5][2];
                     const pZ = 1 / invZ;
-                    const index = j * DISPLAY_WIDTH + i;
+                    const bufferIndex = j * DISPLAY_WIDTH + i;
 
-                    if (pZ > zBuffer[index]) {
-                        zBuffer[index] = pZ;
-
-
-                        const u1 = 0;
-                        const v1 = 0;
-                        const u2 = 1;
-                        const v2 = 0;
-                        const u3 = 0;
-                        const v3 = 1;
+                    if (pZ > zBuffer[bufferIndex]) {
+                        const imageIndex = (j * DISPLAY_WIDTH + i) * 4;
+                        const pA = baryA / triangle[3][2] / invZ;
+                        const pB = baryB / triangle[4][2] / invZ;
+                        const pC = baryC / triangle[5][2] / invZ;
                         const u = pA * u1 + pB * u2 + pC * u3;
                         const v = pA * v1 + pB * v2 + pC * v3;
-                        const textureColor = sampleTextureTest(u, v);
-
-                        let normal = normVector3([wu[1] * wv[2] - wu[2] * wv[1], wu[2] * wv[0] - wu[0] * wv[2], wu[0] * wv[1] - wu[1] * wv[0]]);
-                        let pixelColor = [0, 0, 0];
-
-                        if ((triangle[4][0] - triangle[3][0]) * (triangle[5][1] - triangle[3][1]) - (triangle[4][1] - triangle[3][1]) * (triangle[5][0] - triangle[3][0]) < 0) {
-                            normal = mulVector3(normal, -1);
-                        }
-
-                        const sunlightLambert = Math.max(normal[0] * sunlightDir[0] + normal[1] * sunlightDir[1] + normal[2] * sunlightDir[2], 0);
+                        const sampleX = Math.floor((u % 1) * (texture.width - 1));
+                        const sampleY = Math.floor((v % 1) * (texture.height - 1));
+                        const sampleIndex = (sampleY * texture.width + sampleX) * 4;
+                        const normX = texNorm[sampleIndex] * 2 - 1;
+                        const normY = texNorm[sampleIndex + 1] * 2 - 1;
+                        const normZ = texNorm[sampleIndex + 2] * 2 - 1;
+                        const pixelNormal = normValue3([tan[0] * normX + bitan[0] * normY + triangleNormal[0] * normZ, tan[1] * normX + bitan[1] * normY + triangleNormal[1] * normZ, tan[2] * normX + bitan[2] * normY + triangleNormal[2] * normZ]);
+                        const sunlightLambert = Math.max(pixelNormal[0] * sunlightDir[0] + pixelNormal[1] * sunlightDir[1] + pixelNormal[2] * sunlightDir[2], 0);
+                        const pixelColor = [0, 0, 0];
 
                         for (let v = 0; v < 3; v++) {
-                            pixelColor[v] += ambientColor[v] * ambientIntensity * (textureColor[v] + 10) / 255;
-                            pixelColor[v] += sunlightColor[v] * sunlightIntensity * sunlightLambert * (textureColor[v] + 10) / 255;
+                            pixelColor[v] += ambientColor[v] * ambientIntensity * texDiff[sampleIndex + v];
+                            pixelColor[v] += sunlightColor[v] * sunlightIntensity * sunlightLambert * texDiff[sampleIndex + v];
                         }
 
-
-                        setPixel(i, j, pixelColor[0], pixelColor[1], pixelColor[2]);
+                        zBuffer[bufferIndex] = pZ;
+                        imageData[imageIndex] = pixelColor[0];
+                        imageData[imageIndex + 1] = pixelColor[1];
+                        imageData[imageIndex + 2] = pixelColor[2];
+                        imageData[imageIndex + 3] = 255;
                     }
                 }
             }
@@ -314,4 +375,4 @@ canvas3D.width = DISPLAY_WIDTH;
 canvas3D.height = DISPLAY_HEIGHT;
 canvasOverlay.width = DISPLAY_WIDTH;
 canvasOverlay.height = DISPLAY_HEIGHT;
-gameLoop();
+nextFrame();
