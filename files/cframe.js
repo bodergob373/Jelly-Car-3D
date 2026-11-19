@@ -70,6 +70,16 @@ export class CFrame {
         );
     }
 
+    vectorToWorldSpace(x, y, z) {
+        const v = this.values;
+
+        return [
+            v[3] * x + v[4] * y + v[5] * z,
+            v[6] * x + v[7] * y + v[8] * z,
+            v[9] * x + v[10] * y + v[11] * z
+        ];
+    }
+
     pointToWorldSpace(x, y, z) {
         const v = this.values;
 
