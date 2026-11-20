@@ -17,7 +17,7 @@ export function cross(u, v) {
     const ny = u[2] * v[0] - u[0] * v[2];
     const nz = u[0] * v[1] - u[1] * v[0];
 
-    return norm([nx, ny, nz]);
+    return [nx, ny, nz];
 }
 
 export function mul(vector, scalar) {

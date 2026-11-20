@@ -5,14 +5,14 @@ export class Renderer {
         this.canvas = canvas;
         this.context = canvas.getContext("2d");
 
-        this.MIN_Z = 0.1;
+        this.MIN_Z = 0.01;
 
         this.DAY_FADE_START = -0.2;
         this.DAY_FADE_END = 0.2;
-        this.MAX_SUNLIGHT_INTENSITY = 1.2;
+        this.MAX_SUNLIGHT_INTENSITY = 1.4;
         this.AMBIENT_INTENSITY_POW = 2;
-        this.MIN_AMBIENT_INTENSITY = 0.3;
-        this.MAX_AMBIENT_INTENSITY = 0.6;
+        this.MIN_AMBIENT_INTENSITY = 0.2;
+        this.MAX_AMBIENT_INTENSITY = 0.5;
         this.AMBIENT_COLOR_CURVE = [
             [-1, [200, 220, 255]],
             [-0.2, [180, 200, 255]],

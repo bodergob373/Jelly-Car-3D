@@ -20,8 +20,6 @@ export class Material {
     constructor(path, scale = 1) {
         this.path = path;
         this.scale = scale;
-        this.width = 0;
-        this.height = 0;
     }
 
     async load() {
@@ -44,21 +42,12 @@ export class Material {
         );
 
         for (const [name, image] of results) {
-            if (!image) continue;
+            if (image) {
+                const normalize = name == "nor_gl";
+                const mipLevels = TextureLoader.generateMipLevels(image, normalize);
 
-            if (this.width === 0) {
-                this.width = image.width;
-                this.height = image.height;
-            } else if (
-                image.width !== this.width ||
-                image.height !== this.height
-            ) {
-                throw new Error(
-                    `Texture map "${name}" has wrong dimensions`
-                );
+                this[name] = mipLevels;
             }
-
-            this[name] = image;
         }
 
         return this;
