@@ -2,7 +2,7 @@ import { CFrame } from "./cframe.js";
 import { Enum } from "./enums.js";
 
 export class Camera {
-    constructor(focus = [0, 0, 0], zoom = 0, fov = 80, pitch = 0, yaw = 0) {
+    constructor(focus = [0, 0, 0], zoom = 0, minZoom = 0, maxZoom = 100, fov = 80, pitch = 0, yaw = 0) {
         this.focus = focus;
         this.pitch = pitch;
         this.yaw = yaw;
@@ -10,8 +10,8 @@ export class Camera {
         this.fov = fov;
         this.rotation = new CFrame();
         this.cframe = new CFrame();
-        this.minZoom = 0;
-        this.maxZoom = 100;
+        this.minZoom = minZoom;
+        this.maxZoom = maxZoom;
         this.pitchLimit = Math.PI / 2;
         this.updateCFrame();
     }

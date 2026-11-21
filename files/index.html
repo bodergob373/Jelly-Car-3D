@@ -17,6 +17,91 @@
       }
     }
   </script>
-  
+
   <script src="game_v1.js" type="module"></script>
+
+  <div id="titleScreen">
+    <img id="titleBackground" src="assets/title_image.png" alt="Background">
+
+    <div id="titleContent">
+      <h1 id="titleText">JELLY CAR 3D</h1>
+      <h1 id="loading">Loading textures (might take a minute)</h1>
+      <div id="info">
+        <h1 id="controlsHeader">Controls</h1>
+        <h1 id="controls">Move: WASD</h1>
+        <h1 id="controls">Camera Zoom: Wheel</h1>
+        <h1 id="controls">Reset Car: R</h1>
+        <h1 id="controls">Decrease Resolution: O</h1>
+        <h1 id="controls">Increase Resolution: P</h1>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    html,
+    body {
+      margin: 0;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      background: black;
+      font-family: Arial, sans-serif;
+    }
+
+    #titleScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      overflow: hidden;
+    }
+
+    #titleBackground {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #titleContent {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      color: rgba(255, 255, 255, 1);
+    }
+
+    #info {
+      position: absolute;
+      left: 10%;
+      bottom: 10%;
+      color: rgba(255, 255, 255, 1);
+    }
+
+    #titleText {
+      position: absolute;
+      top: 20%;
+      font-size: 100px;
+      color: rgba(255, 255, 255, 1);
+    }
+
+    #loading {
+      position: absolute;
+      bottom: 30%;
+      font-size: 40px;
+      color: rgba(255, 255, 255, 1);
+    }
+
+    #controlsHeader {
+      font-size: 40px;
+      color: rgba(255, 255, 255, 1);
+    }
+
+    #controls {
+      font-size: 20px;
+      color: rgba(255, 255, 255, 1);
+    }
+  </style>
 </body>
