@@ -146,7 +146,6 @@ export class ProceduralTerrain {
         if (tile) {
             const localX = gridX - i;
             const localZ = gridZ - j;
-
             const triangleIndex = localX + localZ <= 1 ? 0 : 1;
 
             return { tile, triangleIndex, triangle: tile.triangles[triangleIndex], normal: tile.normals[triangleIndex] };
@@ -233,62 +232,27 @@ export class ProceduralTerrain {
         }
 
         const triangle = result.triangle;
-
-        const a = [
-            triangle[0],
-            triangle[1],
-            triangle[2]
-        ];
-
-        const b = [
-            triangle[3],
-            triangle[4],
-            triangle[5]
-        ];
-
-        const c = [
-            triangle[6],
-            triangle[7],
-            triangle[8]
-        ];
-
+        const a = [triangle[0], triangle[1], triangle[2]];
+        const b = [triangle[3], triangle[4], triangle[5]];
+        const c = [triangle[6], triangle[7], triangle[8]];
         const v0x = b[0] - a[0];
         const v0z = b[2] - a[2];
-
         const v1x = c[0] - a[0];
         const v1z = c[2] - a[2];
-
         const v2x = x - a[0];
         const v2z = z - a[2];
-
-        const denominator =
-            v0x * v1z -
-            v1x * v0z;
+        const denominator = v0x * v1z - v1x * v0z;
 
         if (Math.abs(denominator) < 1e-8) {
             return null;
         }
 
         const invDenominator = 1 / denominator;
-
-        const u =
-            (v2x * v1z - v1x * v2z) *
-            invDenominator;
-
-        const v =
-            (v0x * v2z - v2x * v0z) *
-            invDenominator;
-
+        const u = (v2x * v1z - v1x * v2z) * invDenominator;
+        const v = (v0x * v2z - v2x * v0z) * invDenominator;
         const w = 1 - u - v;
+        const height = a[1] * w + b[1] * u + c[1] * v;
 
-        const height =
-            a[1] * w +
-            b[1] * u +
-            c[1] * v;
-
-        return {
-            height,
-            normal: result.normal
-        };
+        return { height, normal: result.normal };
     }
 }

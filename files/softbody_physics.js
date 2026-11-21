@@ -103,7 +103,6 @@ export class SoftbodyPhysics {
             node.velocity[0] += node.force[0] * invMass * dt;
             node.velocity[1] += node.force[1] * invMass * dt;
             node.velocity[2] += node.force[2] * invMass * dt;
-
             node.position[0] += node.velocity[0] * dt;
             node.position[1] += node.velocity[1] * dt;
             node.position[2] += node.velocity[2] * dt;
@@ -125,11 +124,9 @@ export class SoftbodyPhysics {
     applySpringForce(spring) {
         const a = spring.nodeA;
         const b = spring.nodeB;
-
         const dx = b.position[0] - a.position[0];
         const dy = b.position[1] - a.position[1];
         const dz = b.position[2] - a.position[2];
-
         const length = Math.hypot(dx, dy, dz);
 
         if (length < 1e-8) return;
@@ -137,12 +134,15 @@ export class SoftbodyPhysics {
         const nx = dx / length;
         const ny = dy / length;
         const nz = dz / length;
-
         const displacement = length - spring.freeLength;
+        const relVelocity = (b.velocity[0] - a.velocity[0]) * nx + (b.velocity[1] - a.velocity[1]) * ny + (b.velocity[2] - a.velocity[2]) * nz;
+        //const force = spring.stiffness * displacement + spring.damping * relVelocity;
 
-        const relativeVelocity = (b.velocity[0] - a.velocity[0]) * nx + (b.velocity[1] - a.velocity[1]) * ny + (b.velocity[2] - a.velocity[2]) * nz;
+        const ratio = length / spring.freeLength;
+        const distanceToLimit = Math.min(ratio - 0.6, 2 - ratio);
+        const multiplier = 1 / Math.pow(distanceToLimit, 2);
+        const force = spring.stiffness * multiplier * displacement + spring.damping * relVelocity;
 
-        const force = spring.stiffness * displacement + spring.damping * relativeVelocity;
 
         const fx = force * nx;
         const fy = force * ny;
@@ -151,7 +151,6 @@ export class SoftbodyPhysics {
         a.force[0] += fx;
         a.force[1] += fy;
         a.force[2] += fz;
-
         b.force[0] -= fx;
         b.force[1] -= fy;
         b.force[2] -= fz;
@@ -172,10 +171,7 @@ export class SoftbodyPhysics {
         node.position[1] += normal[1] * penetration;
         node.position[2] += normal[2] * penetration;
 
-        const normalVelocity =
-            node.velocity[0] * normal[0] +
-            node.velocity[1] * normal[1] +
-            node.velocity[2] * normal[2];
+        const normalVelocity = node.velocity[0] * normal[0] + node.velocity[1] * normal[1] + node.velocity[2] * normal[2];
 
         if (normalVelocity < 0) {
             node.velocity[0] -= normal[0] * normalVelocity;
@@ -186,26 +182,14 @@ export class SoftbodyPhysics {
         const vx = node.velocity[0];
         const vy = node.velocity[1];
         const vz = node.velocity[2];
-
-        const vn =
-            vx * normal[0] +
-            vy * normal[1] +
-            vz * normal[2];
-
+        const vn = vx * normal[0] + vy * normal[1] + vz * normal[2];
         const tangentX = vx - normal[0] * vn;
         const tangentY = vy - normal[1] * vn;
         const tangentZ = vz - normal[2] * vn;
+        const frictionFactor = Math.exp(-node.friction * dt);
 
-        const frictionFactor =
-            Math.exp(-node.friction * dt);
-
-        node.velocity[0] =
-            normal[0] * vn + tangentX * frictionFactor;
-
-        node.velocity[1] =
-            normal[1] * vn + tangentY * frictionFactor;
-
-        node.velocity[2] =
-            normal[2] * vn + tangentZ * frictionFactor;
+        node.velocity[0] = normal[0] * vn + tangentX * frictionFactor;
+        node.velocity[1] = normal[1] * vn + tangentY * frictionFactor;
+        node.velocity[2] = normal[2] * vn + tangentZ * frictionFactor;
     }
 }

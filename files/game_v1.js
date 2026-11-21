@@ -51,12 +51,13 @@ let resolutionScale = 0.5;
 
 function reset() {
     const mass = 1;
-    const friction = 8;
-    const stiffness = 200;
-    const centerStiffness = 40;
+    const friction = 100;
+    const stiffness = 40;
+    const centerStiffness = 10;
+    const damping = 1;
 
     physics = new SoftbodyPhysics(9.81, terrain);
-    sphereCenter = createIcosphere(10, 1, mass, friction, stiffness, centerStiffness, 0.4);
+    sphereCenter = createIcosphere(10, 1, mass, friction, stiffness, centerStiffness, damping);
 }
 
 function createIcosphere(radius = 1, subdivisions = 1, mass = 1, friction = 1, stiffness = 10, centerStiffness = 10, damping = 0) {
@@ -374,7 +375,7 @@ function nextFrame() {
         moveDir[1] = 0;
         moveDir = value3.norm(moveDir)
 
-        physics.applyForce(sphereCenter, moveDir, 500);
+        physics.applyForce(sphereCenter, moveDir, 1000);
         physics.stepPhysics(subDt);
     }
 
