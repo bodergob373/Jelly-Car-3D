@@ -2,7 +2,7 @@ import { CFrame } from "./cframe.js";
 import { Enum } from "./enums.js";
 
 export class Camera {
-    constructor(focus = [0, 0, 0], fov = 80, pitch = 0, yaw = 0, zoom = 0) {
+    constructor(focus = [0, 0, 0], zoom = 0, fov = 80, pitch = 0, yaw = 0) {
         this.focus = focus;
         this.pitch = pitch;
         this.yaw = yaw;

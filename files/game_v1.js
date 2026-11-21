@@ -4,6 +4,7 @@ import { Sky } from "./sky.js";
 import { Renderer } from "./renderer_v2.js";
 import { Camera } from "./camera.js";
 import { ProceduralTerrain } from "./procedural_terrain.js";
+import { SoftbodyPhysics } from "./softbody_physics.js";
 
 const canvas3D = document.getElementById("canvas3D");
 const renderer = new Renderer(canvas3D);
@@ -32,6 +33,9 @@ const terrain = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 8, 0, 200, 2
 const terrainFar1 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 16, -1, 400, 400, 200, 200);
 const terrainFar2 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 32, -3, 1200, 1200, 400, 400);
 
+const physics = new SoftbodyPhysics(9.81, terrain);
+let sphereCenter = null;
+
 let lastFrameTime = performance.now();
 let dt;
 
@@ -40,7 +44,7 @@ let mouseLeft = false;
 let mouseRight = false;
 let mouseDelta = [0, 0];
 
-let camera = new Camera([0, 0, 0]);
+let camera = new Camera([0, 0, 10], 40);
 
 let resolutionScale = 0.5;
 
@@ -125,11 +129,29 @@ function updateCamera() {
     let camMoveDir = [0, 0, 0];
 
     camera.setRotation(camera.pitch - mouseDelta[1] * CAMERA_ROT_SPEED, camera.yaw - mouseDelta[0] * CAMERA_ROT_SPEED);
-    camMoveDir[0] = (keyData["d"] & 1) - (keyData["a"] & 1);
+    /*camMoveDir[0] = (keyData["d"] & 1) - (keyData["a"] & 1);
     camMoveDir[1] = (keyData[" "] & 1) - (keyData["Shift"] & 1);
     camMoveDir[2] = (keyData["s"] & 1) - (keyData["w"] & 1);
     camMoveDir = value3.mul(value3.norm(camera.rotation.vectorToWorldSpace(...camMoveDir)), CAM_MOVE_SPEED * dt);
-    camera.setFocus(value3.add(camera.focus, camMoveDir));
+    camera.setFocus(value3.add(camera.focus, camMoveDir));*/
+
+    const center = [0, 0, 0];
+    const nodeCount = physics.nodes.length;
+
+    if (nodeCount > 0) {
+        for (const node of physics.nodes) {
+            center[0] += node.position[0];
+            center[1] += node.position[1];
+            center[2] += node.position[2];
+        }
+
+        center[0] /= nodeCount;
+        center[1] /= nodeCount;
+        center[2] /= nodeCount;
+
+        camera.setFocus(center);
+    }
+
     mouseDelta[0] = 0;
     mouseDelta[1] = 0;
 }
@@ -156,8 +178,26 @@ function nextFrame() {
     terrainFar2.unloadTiles(camera.focus);
     textureTerrainTiles(terrainFar2.loadTiles(camera.focus), 1.4);
 
+    const substeps = 512;
+    const subDt = dt / substeps;
+
+    for (let i = 0; i < substeps; i++) {
+        let moveDir = [0, 0, 0];
+
+        moveDir[0] = (keyData["d"] & 1) - (keyData["a"] & 1);
+        moveDir[2] = (keyData["s"] & 1) - (keyData["w"] & 1);
+        moveDir = camera.rotation.vectorToWorldSpace(...moveDir);
+        moveDir[1] = 0;
+        moveDir = value3.norm(moveDir)
+
+        physics.applyForce(sphereCenter, moveDir, 500);
+        physics.stepPhysics(subDt);
+    }
+
+    physics.updateTriangles();
+
     updateGame(dt);
-    renderer.render([terrain.triangles, terrainFar1.triangles, terrainFar2.triangles], camera);
+    renderer.render([physics.renderTriangles, terrain.triangles, terrainFar1.triangles, terrainFar2.triangles], camera);
     updateOverlay();
     requestAnimationFrame(nextFrame);
 }
@@ -209,6 +249,181 @@ window.addEventListener("resize", () => {
     resize();
 });
 
+
+function createIcosphere(radius = 1, subdivisions = 1, mass = 1, friction = 1, stiffness = 10, centerStiffness = 10, damping = 0) {
+    const nodes = [];
+    const triangles = [];
+    const centralNode = physics.addNode([0, 0, 0], mass * 10, 0);
+
+    const t = (1 + Math.sqrt(5)) / 2;
+
+    const positions = [
+        [-1, t, 0],
+        [1, t, 0],
+        [-1, -t, 0],
+        [1, -t, 0],
+
+        [0, -1, t],
+        [0, 1, t],
+        [0, -1, -t],
+        [0, 1, -t],
+
+        [t, 0, -1],
+        [t, 0, 1],
+        [-t, 0, -1],
+        [-t, 0, 1]
+    ];
+
+    for (const position of positions) {
+        const length = Math.hypot(
+            position[0],
+            position[1],
+            position[2]
+        );
+
+        position[0] = position[0] / length * radius;
+        position[1] = position[1] / length * radius;
+        position[2] = position[2] / length * radius;
+    }
+
+    for (const position of positions) {
+        nodes.push(
+            physics.addNode(position, mass, friction)
+        );
+    }
+
+    let faces = [
+        [0, 11, 5],
+        [0, 5, 1],
+        [0, 1, 7],
+        [0, 7, 10],
+        [0, 10, 11],
+
+        [1, 5, 9],
+        [5, 11, 4],
+        [11, 10, 2],
+        [10, 7, 6],
+        [7, 1, 8],
+
+        [3, 9, 4],
+        [3, 4, 2],
+        [3, 2, 6],
+        [3, 6, 8],
+        [3, 8, 9],
+
+        [4, 9, 5],
+        [2, 4, 11],
+        [6, 2, 10],
+        [8, 6, 7],
+        [9, 8, 1]
+    ];
+
+    const midpointCache = new Map();
+
+    const getMidpoint = (a, b) => {
+        const min = Math.min(a, b);
+        const max = Math.max(a, b);
+        const key = `${min},${max}`;
+
+        const cached = midpointCache.get(key);
+
+        if (cached !== undefined) {
+            return cached;
+        }
+
+        const pa = nodes[a].position;
+        const pb = nodes[b].position;
+
+        let x = (pa[0] + pb[0]) * 0.5;
+        let y = (pa[1] + pb[1]) * 0.5;
+        let z = (pa[2] + pb[2]) * 0.5;
+
+        const length = Math.hypot(x, y, z);
+
+        x = x / length * radius;
+        y = y / length * radius;
+        z = z / length * radius;
+
+        const node = physics.addNode(
+            [x, y, z],
+            mass,
+            friction
+        );
+
+        const index = nodes.length;
+        nodes.push(node);
+
+        midpointCache.set(key, index);
+
+        return index;
+    };
+
+    for (let level = 0; level < subdivisions; level++) {
+        const newFaces = [];
+
+        for (const [a, b, c] of faces) {
+            const ab = getMidpoint(a, b);
+            const bc = getMidpoint(b, c);
+            const ca = getMidpoint(c, a);
+
+            newFaces.push(
+                [a, ab, ca],
+                [b, bc, ab],
+                [c, ca, bc],
+                [ab, bc, ca]
+            );
+        }
+
+        faces = newFaces;
+    }
+
+    const edgeSet = new Set();
+
+    for (const [a, b, c] of faces) {
+        const edges = [
+            [a, b],
+            [b, c],
+            [c, a]
+        ];
+
+        for (const [i, j] of edges) {
+            const min = Math.min(i, j);
+            const max = Math.max(i, j);
+            const key = `${min},${max}`;
+
+            if (edgeSet.has(key)) continue;
+
+            edgeSet.add(key);
+
+            physics.addSpring(
+                nodes[i],
+                nodes[j],
+                stiffness,
+                damping
+            );
+        }
+    }
+
+    for (const node of nodes) {
+        physics.addSpring(
+            centralNode,
+            node,
+            centerStiffness,
+            damping
+        );
+    }
+
+    for (const [a, b, c] of faces) {
+        const triangle = physics.addTriangle(nodes[a], nodes[b], nodes[c]);
+
+        triangle[9] = 4;
+        uvMapTriangle(triangle);
+    }
+
+    return centralNode;
+}
+
+
 renderer.daySky = await new Sky("./assets/day_sky", 20).load();
 renderer.nightSky = await new Sky("./assets/night_sky", 0).load();
 renderer.materials = [
@@ -216,9 +431,15 @@ renderer.materials = [
     await new Material("./assets/materials/rockier_grass", 8).load(),
     await new Material("./assets/materials/rockiest_grass", 8).load(),
     await new Material("./assets/materials/pebbles", 16).load(),
+    await new Material("./assets/materials/car", 4).load(),
     //await new Material("./assets/materials/painted_metal", 2).load(),
     //await new Material("./assets/materials/steel", 2).load(),
 ]
 resize();
-renderer.geographicLatitude = 40;
+renderer.geographicLatitude = 30;
+const mass = 1;
+const friction = 8;
+const stiffness = 200;
+const centerStiffness = 40;
+sphereCenter = createIcosphere(10, 1, mass, friction, stiffness, centerStiffness, 0.4);
 nextFrame();

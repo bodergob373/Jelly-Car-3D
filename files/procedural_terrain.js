@@ -13,7 +13,7 @@ export class ProceduralTerrain {
         this.minUnloadRadius = minUnloadRadius;
         this.spawnPadUpperRadius = 50;
         this.spawnPadLowerRadius = 100;
-        this.spawnPadHeight = 0;
+        this.spawnPadHeight = -10;
         this.tiles = new Map();
         this.triangles = [];
         this.tileHeight = this.tileSize * Math.sqrt(3) / 2;
@@ -223,5 +223,72 @@ export class ProceduralTerrain {
         this.updateTriangles();
 
         return unloaded;
+    }
+
+    getSurfaceAt(x, z) {
+        const result = this.getTileAt(x, z);
+
+        if (!result) {
+            return null;
+        }
+
+        const triangle = result.triangle;
+
+        const a = [
+            triangle[0],
+            triangle[1],
+            triangle[2]
+        ];
+
+        const b = [
+            triangle[3],
+            triangle[4],
+            triangle[5]
+        ];
+
+        const c = [
+            triangle[6],
+            triangle[7],
+            triangle[8]
+        ];
+
+        const v0x = b[0] - a[0];
+        const v0z = b[2] - a[2];
+
+        const v1x = c[0] - a[0];
+        const v1z = c[2] - a[2];
+
+        const v2x = x - a[0];
+        const v2z = z - a[2];
+
+        const denominator =
+            v0x * v1z -
+            v1x * v0z;
+
+        if (Math.abs(denominator) < 1e-8) {
+            return null;
+        }
+
+        const invDenominator = 1 / denominator;
+
+        const u =
+            (v2x * v1z - v1x * v2z) *
+            invDenominator;
+
+        const v =
+            (v0x * v2z - v2x * v0z) *
+            invDenominator;
+
+        const w = 1 - u - v;
+
+        const height =
+            a[1] * w +
+            b[1] * u +
+            c[1] * v;
+
+        return {
+            height,
+            normal: result.normal
+        };
     }
 }
