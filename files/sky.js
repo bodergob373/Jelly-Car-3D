@@ -12,10 +12,10 @@ export class Sky {
     ];
 
     static FORMATS = [
-        "exr",
         "png",
         "jpg",
-        "jpeg"
+        "jpeg",
+        "exr",
     ];
 
     constructor(path, sunAngularSize = 20) {
@@ -32,10 +32,14 @@ export class Sky {
                 for (const format of Sky.FORMATS) {
                     const path = `${basePath}/${name}.${format}`;
 
-                    const image = await TextureLoader.decode(path);
+                    try {
+                        const image = await TextureLoader.decode(path);
 
-                    if (image !== null) {
-                        return [name, image];
+                        if (image !== null) {
+                            return [name, image];
+                        }
+                    } catch (error) {
+                        return [name, { width: 1, height: 1, data: [0, 0, 0, 1] }]
                     }
                 }
 

@@ -1,5 +1,7 @@
 import * as value3 from "./value3.js";
 
+const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
+
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -172,7 +174,7 @@ export class Renderer {
             const x1 = Math.min(Math.ceil(maxX), this.width);
             const y0 = Math.max(Math.floor(minY), 0);
             const y1 = Math.min(Math.ceil(maxY), this.height);
-            const material = this.materials[triangle[9]];
+            const material = this.materials[triangle[9]] || DEFAULT_MATERIAL;
             const texDiffMap = material.diff;
             const texNormMap = material.nor_gl;
             const edge1X = triangle[1][0] - triangle[0][0];
@@ -219,7 +221,7 @@ export class Renderer {
             const sunlightR = this.sunlightColor[0] * this.sunlightIntensity;
             const sunlightG = this.sunlightColor[1] * this.sunlightIntensity;
             const sunlightB = this.sunlightColor[2] * this.sunlightIntensity;
-            
+
             if ((triangle[4][0] - triangle[3][0]) * (triangle[5][1] - triangle[3][1]) - (triangle[4][1] - triangle[3][1]) * (triangle[5][0] - triangle[3][0]) > 0) {
                 triangleNormal = value3.mul(triangleNormal, -1);
                 tan = value3.mul(tan, -1);

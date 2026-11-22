@@ -263,7 +263,8 @@ function uvMapTriangle(triangle) {
     const y2 = value3.dot(rel2, yAxisDir);
     const x3 = value3.dot(rel3, xAxisDir);
     const y3 = value3.dot(rel3, yAxisDir);
-    const textureScale = renderer.materials[triangle[9]].scale;
+    const material = renderer.materials[triangle[9]]
+    const textureScale = material && material.scale || 1;
     const uOffset = Math.random() * textureScale;
     const vOffset = Math.random() * textureScale;
 
@@ -305,9 +306,24 @@ function updateOverlay() {
     overlayContext.imageSmoothingEnabled = false;
     overlayContext.drawImage(canvas3D, 0, 0, canvasOverlay.width, canvasOverlay.height);
 
-    overlayContext.fillStyle = "rgb(20, 20, 40)";
+    overlayContext.fillStyle = "rgb(0, 0, 200)";
     overlayContext.font = "32px system-ui";
     overlayContext.fillText(Math.round(1 / dt) + " FPS", 20, canvasOverlay.height - 20);
+    overlayContext.font = "28px system-ui";
+
+    if (keyData["c"]) {
+        overlayContext.fillText("Controls:", canvasOverlay.width - 300, 40);
+        overlayContext.font = "20px system-ui";
+        overlayContext.fillText("Movement: WASD", canvasOverlay.width - 300, 80);
+        overlayContext.fillText("Camera Zoom: Mouse Wheel", canvasOverlay.width - 300, 110);
+        overlayContext.fillText("Decrease Resolution: O", canvasOverlay.width - 300, 140);
+        overlayContext.fillText("Increase Resolution: P", canvasOverlay.width - 300, 170);
+        overlayContext.fillText("Reload Ball: R", canvasOverlay.width - 300, 200);
+
+    }
+    else {
+        overlayContext.fillText("See Controls (C)", canvasOverlay.width - 300, 40);
+    }
 }
 
 function updateCamera() {
@@ -363,7 +379,7 @@ function nextFrame() {
     terrainFar2.unloadTiles(camera.focus);
     textureTerrainTiles(terrainFar2.loadTiles(camera.focus), 1.4);
 
-    const substeps = 512;
+    const substeps = Math.round(dt * 512);
     const subDt = dt / substeps;
 
     for (let i = 0; i < substeps; i++) {
@@ -454,8 +470,6 @@ renderer.materials = [
     await new Material("./assets/materials/rockiest_grass", 8).load(),
     await new Material("./assets/materials/pebbles", 16).load(),
     await new Material("./assets/materials/car", 4).load(),
-    //await new Material("./assets/materials/painted_metal", 2).load(),
-    //await new Material("./assets/materials/steel", 2).load(),
 ]
 titleScreen.style.display = "none";
 resize();

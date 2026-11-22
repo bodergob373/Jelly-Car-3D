@@ -11,10 +11,10 @@ export class Material {
     ];
 
     static FORMATS = [
-        "exr",
         "png",
         "jpg",
-        "jpeg"
+        "jpeg",
+        "exr"
     ];
 
     constructor(path, scale = 1) {
@@ -30,10 +30,14 @@ export class Material {
                 for (const format of Material.FORMATS) {
                     const path = `${basePath}/${name}.${format}`;
 
-                    const image = await TextureLoader.decode(path);
+                    try {
+                        const image = await TextureLoader.decode(path);
 
-                    if (image !== null) {
-                        return [name, image];
+                        if (image !== null) {
+                            return [name, image];
+                        }
+                    } catch (error) {
+                        return [name, { width: 1, height: 1, data: [0, 0, 0, 1] }];
                     }
                 }
 
@@ -43,8 +47,9 @@ export class Material {
 
         for (const [name, image] of results) {
             if (image) {
-                const normalize = name == "nor_gl";
-                const mipLevels = TextureLoader.generateMipLevels(image, normalize);
+                const normalize = name === "nor_gl";
+                const mipLevels =
+                    TextureLoader.generateMipLevels(image, normalize);
 
                 this[name] = mipLevels;
             }

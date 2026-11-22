@@ -18,7 +18,7 @@
     }
   </script>
 
-  <script src="game_v1.js" type="module"></script>
+  <script src="game_v2.js" type="module"></script>
 
   <div id="titleScreen">
     <img id="titleBackground" src="assets/title_image.png" alt="Background">
@@ -26,14 +26,6 @@
     <div id="titleContent">
       <h1 id="titleText">JELLY CAR 3D</h1>
       <h1 id="loading">Loading textures (might take a minute)</h1>
-      <div id="info">
-        <h1 id="controlsHeader">Controls</h1>
-        <h1 id="controls">Move: WASD</h1>
-        <h1 id="controls">Camera Zoom: Wheel</h1>
-        <h1 id="controls">Reset Car: R</h1>
-        <h1 id="controls">Decrease Resolution: O</h1>
-        <h1 id="controls">Increase Resolution: P</h1>
-      </div>
     </div>
   </div>
 
@@ -73,13 +65,6 @@
       color: rgba(255, 255, 255, 1);
     }
 
-    #info {
-      position: absolute;
-      left: 10%;
-      bottom: 10%;
-      color: rgba(255, 255, 255, 1);
-    }
-
     #titleText {
       position: absolute;
       top: 20%;
@@ -91,16 +76,6 @@
       position: absolute;
       bottom: 30%;
       font-size: 30px;
-      color: rgba(255, 255, 255, 1);
-    }
-
-    #controlsHeader {
-      font-size: 40px;
-      color: rgba(255, 255, 255, 1);
-    }
-
-    #controls {
-      font-size: 20px;
       color: rgba(255, 255, 255, 1);
     }
   </style>
