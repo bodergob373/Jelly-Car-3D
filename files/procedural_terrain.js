@@ -1,4 +1,4 @@
-import * as value3 from "./value3.js";
+import * as triangleFunctions from "./triangle_functions.js";
 import { PerlinNoise2D } from "./perlin_noise_3d.js";
 
 export class ProceduralTerrain {
@@ -11,9 +11,9 @@ export class ProceduralTerrain {
         this.minLoadRadius = minLoadRadius;
         this.maxUnloadRadius = maxUnloadRadius;
         this.minUnloadRadius = minUnloadRadius;
-        this.spawnPadUpperRadius = 50;
-        this.spawnPadLowerRadius = 100;
-        this.spawnPadHeight = -10;
+        this.spawnPadUpperRadius = 40;
+        this.spawnPadLowerRadius = 120;
+        this.spawnPadHeight = 0;
         this.tiles = new Map();
         this.triangles = [];
         this.tileHeight = this.tileSize * Math.sqrt(3) / 2;
@@ -63,17 +63,6 @@ export class ProceduralTerrain {
         return [x, this.getHeight(x, z), z];
     }
 
-    getNormal(a, b, c) {
-        const ux = b[0] - a[0];
-        const uy = b[1] - a[1];
-        const uz = b[2] - a[2];
-        const vx = c[0] - a[0];
-        const vy = c[1] - a[1];
-        const vz = c[2] - a[2];
-
-        return value3.norm(value3.cross([ux, uy, uz], [vx, vy, vz]));
-    }
-
     generateTile(xIndex, zIndex) {
         const p00 = this.getVertex(xIndex, zIndex);
         const p10 = this.getVertex(xIndex + 1, zIndex);
@@ -83,27 +72,12 @@ export class ProceduralTerrain {
         const triangles = [];
         const normals = [];
 
-        /*for (const points of vertices) {
-            const normal = this.getNormal(...points);
+        for (const points of vertices) {
+            const normal = triangleFunctions.getNormal3(...points);
 
             normals.push(normal);
             triangles.push([...points[0], ...points[1], ...points[2], 0, 0, 0, 0, 0, 0, 0]);
-        }*/
-
-
-
-        const normal1 = this.getNormal(...vertices[0]);
-
-        normals.push(normal1);
-        triangles.push([...vertices[0][2], ...vertices[0][1], ...vertices[0][0], 0, 0, 0, 0, 0, 0, 0]);
-
-        const normal2 = this.getNormal(...vertices[1]);
-
-        normals.push(normal2);
-        triangles.push([...vertices[1][0], ...vertices[1][1], ...vertices[1][2], 0, 0, 0, 0, 0, 0, 0]);
-
-
-
+        }
 
         return { xIndex, zIndex, triangles, normals, vertices };
     }

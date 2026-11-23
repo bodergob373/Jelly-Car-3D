@@ -1,6 +1,7 @@
 import * as value3 from "./value3.js";
 
-const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
+//const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
+const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [1, 0.5, 0.5, 1] }] };
 
 export class Renderer {
     constructor(canvas) {
