@@ -3,7 +3,7 @@ https://jellycar3d.vercel.app/
 
 ## Description
 
-### A game about driving a jelly car (or sphere) across procedurally generated terrain. The 3D renderer was made in plain JS and displays the rendered images on a canvas.
+### A game about driving a jelly car (or ball) across procedurally generated terrain. The 3D renderer was made in plain JS and displays the rendered images on a canvas.
 The only library used is hdrify, which was for loading EXR textures.
 
 <img width="1162" height="771" alt="Screenshot 2026-11-23 012318" src="https://github.com/user-attachments/assets/4c3ba0bd-ee53-4adb-ab9e-728977a4a5b2" />
