@@ -11,8 +11,8 @@ export class ProceduralTerrain {
         this.minLoadRadius = minLoadRadius;
         this.maxUnloadRadius = maxUnloadRadius;
         this.minUnloadRadius = minUnloadRadius;
-        this.spawnPadUpperRadius = 40;
-        this.spawnPadLowerRadius = 120;
+        this.spawnPadUpperRadius = 20;
+        this.spawnPadLowerRadius = 80;
         this.spawnPadHeight = 0;
         this.tiles = new Map();
         this.triangles = [];

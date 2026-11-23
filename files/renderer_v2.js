@@ -1,7 +1,6 @@
 import * as value3 from "./value3.js";
 
-//const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
-const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [1, 0.5, 0.5, 1] }] };
+const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
 
 export class Renderer {
     constructor(canvas) {
@@ -178,12 +177,8 @@ export class Renderer {
             const material = this.materials[triangle[9]] || DEFAULT_MATERIAL;
             const texDiffMap = material.diff;
             const texNormMap = material.nor_gl;
-            const edge1X = triangle[1][0] - triangle[0][0];
-            const edge1Y = triangle[1][1] - triangle[0][1];
-            const edge1Z = triangle[1][2] - triangle[0][2];
-            const edge2X = triangle[2][0] - triangle[0][0];
-            const edge2Y = triangle[2][1] - triangle[0][1];
-            const edge2Z = triangle[2][2] - triangle[0][2];
+            const edge1 = [triangle[1][0] - triangle[0][0], triangle[1][1] - triangle[0][1], triangle[1][2] - triangle[0][2]];
+            const edge2 = [triangle[2][0] - triangle[0][0], triangle[2][1] - triangle[0][1], triangle[2][2] - triangle[0][2]];
             const u1 = triangle[6][0] / material.scale;
             const v1 = triangle[6][1] / material.scale;
             const u2 = triangle[7][0] / material.scale;
@@ -195,11 +190,9 @@ export class Renderer {
             const du2 = u3 - u1;
             const dv2 = v3 - v1;
             const f = 1 / (du1 * dv2 - du2 * dv1);
-            let tan = value3.norm([f * (dv2 * edge1X - dv1 * edge2X), f * (dv2 * edge1Y - dv1 * edge2Y), f * (dv2 * edge1Z - dv1 * edge2Z)]);
-            let bitan = value3.norm([f * (-du2 * edge1X + du1 * edge2X), f * (-du2 * edge1Y + du1 * edge2Y), f * (-du2 * edge1Z + du1 * edge2Z)]);
-            const wu = [triangle[1][0] - triangle[0][0], triangle[1][1] - triangle[0][1], triangle[1][2] - triangle[0][2]];
-            const wv = [triangle[2][0] - triangle[0][0], triangle[2][1] - triangle[0][1], triangle[2][2] - triangle[0][2]];
-            let triangleNormal = value3.norm([wu[1] * wv[2] - wu[2] * wv[1], wu[2] * wv[0] - wu[0] * wv[2], wu[0] * wv[1] - wu[1] * wv[0]]);
+            let tan = value3.norm([f * (dv2 * edge1[0] - dv1 * edge2[0]), f * (dv2 * edge1[1] - dv1 * edge2[1]), f * (dv2 * edge1[2] - dv1 * edge2[2])]);
+            let bitan = value3.norm([f * (-du2 * edge1[0] + du1 * edge2[0]), f * (-du2 * edge1[1] + du1 * edge2[1]), f * (-du2 * edge1[2] + du1 * edge2[2])]);
+            let triangleNormal = value3.norm([edge1[1] * edge2[2] - edge1[2] * edge2[1], edge1[2] * edge2[0] - edge1[0] * edge2[2], edge1[0] * edge2[1] - edge1[1] * edge2[0]]);
             const invDet = 1 / ((triangle[4][1] - triangle[5][1]) * (triangle[3][0] - triangle[5][0]) + (triangle[5][0] - triangle[4][0]) * (triangle[3][1] - triangle[5][1]));
             const ax = (triangle[4][1] - triangle[5][1]) * invDet;
             const ay = (triangle[5][0] - triangle[4][0]) * invDet;
@@ -225,8 +218,6 @@ export class Renderer {
 
             if ((triangle[4][0] - triangle[3][0]) * (triangle[5][1] - triangle[3][1]) - (triangle[4][1] - triangle[3][1]) * (triangle[5][0] - triangle[3][0]) > 0) {
                 triangleNormal = value3.mul(triangleNormal, -1);
-                tan = value3.mul(tan, -1);
-                bitan = value3.mul(bitan, -1);
             }
 
             for (let y = y0; y < y1; y++) {

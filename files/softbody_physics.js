@@ -94,7 +94,7 @@ export class SoftbodyPhysics {
         }
 
         for (const spring of this.springs) {
-            this.applySpringForce(spring);
+            this.applySpringForce(spring, dt);
         }
 
         for (const node of this.nodes) {
@@ -121,7 +121,7 @@ export class SoftbodyPhysics {
         }
     }
 
-    applySpringForce(spring) {
+    applySpringForce(spring, dt) {
         const a = spring.nodeA;
         const b = spring.nodeB;
         const dx = b.position[0] - a.position[0];
@@ -139,10 +139,9 @@ export class SoftbodyPhysics {
         //const force = spring.stiffness * displacement + spring.damping * relVelocity;
 
         const ratio = length / spring.freeLength;
-        const distanceToLimit = Math.min(ratio - 0.6, 2 - ratio);
+        const distanceToLimit = Math.min(ratio - 0.6, 1.6 - ratio);
         const multiplier = 1 / Math.pow(distanceToLimit, 2);
         const force = spring.stiffness * multiplier * displacement + spring.damping * relVelocity;
-
 
         const fx = force * nx;
         const fy = force * ny;

@@ -124,3 +124,197 @@ export function createIcosphere(physicsObject, centerPosition = [0, 0, 0], radiu
 
     return centralNode;
 }
+
+export function getCircleData(centerPosition = [0, 0, 0], radius = 10, outerNodeCount = 16) {
+    const center = [centerPosition[0], centerPosition[1], centerPosition[2]];
+    const outerPoints = [];
+
+    for (let i = 0; i < outerNodeCount; i++) {
+        const angle = (i / outerNodeCount) * Math.PI * 2;
+
+        outerPoints.push([Math.cos(angle) * radius, Math.sin(angle) * radius]);
+    }
+
+    return { center, points: outerPoints };
+}
+
+export function createDiskFromPoints(physicsObject, faceMaterial, points, centerPosition = [0, 0, 0], mass = 1, friction = 100, stiffness = 100, damping = 0) {
+    if (points.length < 3) {
+        return [];
+    }
+
+    let centroidY = 0;
+    let centroidZ = 0;
+
+    for (const [nz, y] of points) {
+        centroidZ -= nz;
+        centroidY += y;
+    }
+
+    centroidY /= points.length;
+    centroidZ /= points.length;
+
+    const sortedPoints = points.map(([y, z]) => ({ y, z, angle: Math.atan2(z - centroidZ, y - centroidY) })).sort((a, b) => a.angle - b.angle);
+    const centerNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + centroidY, centerPosition[2] + centroidZ], mass, friction);
+    const outerNodes = sortedPoints.map(({ y, z }) => physicsObject.addNode([centerPosition[0], centerPosition[1] + z, centerPosition[2] - y], mass, friction));
+
+    for (let i = 0; i < outerNodes.length; i++) {
+        const current = outerNodes[i];
+        const next = outerNodes[(i + 1) % outerNodes.length];
+
+        physicsObject.addSpring(centerNode, current, stiffness, damping);
+        physicsObject.addSpring(current, next, stiffness, damping);
+
+        const triangle = physicsObject.addTriangle(centerNode, current, next);
+
+        triangle[9] = faceMaterial;
+        triangleFunctions.uvMapTriangle(triangle);
+    }
+
+    return [centerNode, outerNodes];
+}
+
+export function createCylinder(physicsObject, faceMaterial, edgeMaterial, centerPosition = [0, 0, 0], points, thickness = 1, mass = 1, friction = 100, stiffness = 100, damping = 0) {
+    if (!points || points.length < 3) {
+        return { centerNodes: [], outerNodes: [] };
+    }
+
+    const center1 = [centerPosition[0] - thickness * 0.5, centerPosition[1], centerPosition[2]];
+    const center2 = [centerPosition[0] + thickness * 0.5, centerPosition[1], centerPosition[2]];
+    const [centerNode1, outerNodes1] = createDiskFromPoints(physicsObject, faceMaterial, points, center1, mass, friction, stiffness, damping);
+    const [centerNode2, outerNodes2] = createDiskFromPoints(physicsObject, faceMaterial, points, center2, mass, friction, stiffness, damping);
+
+    for (let i = 0; i < outerNodes1.length; i++) {
+        const next = (i + 1) % outerNodes1.length;
+        const a = outerNodes1[i];
+        const b = outerNodes2[i];
+        const c = outerNodes1[next];
+        const d = outerNodes2[next];
+
+        physicsObject.addSpring(a, centerNode2, stiffness, damping);
+        physicsObject.addSpring(b, centerNode1, stiffness, damping);
+        physicsObject.addSpring(a, b, stiffness, damping);
+        physicsObject.addSpring(b, c, stiffness, damping);
+        physicsObject.addSpring(a, d, stiffness, damping);
+
+        const triangle1 = physicsObject.addTriangle(a, c, b);
+        triangle1[9] = edgeMaterial;
+        triangleFunctions.uvMapTriangle(triangle1);
+
+        const triangle2 = physicsObject.addTriangle(b, c, d);
+        triangle2[9] = edgeMaterial;
+        triangleFunctions.uvMapTriangle(triangle2);
+    }
+
+    return { centerNodes: [centerNode1, centerNode2], outerNodes: [outerNodes1, outerNodes2] };
+}
+
+export function createCircularCylinder(physicsObject, faceMaterial, edgeMaterial, centerPosition = [0, 0, 0], radius = 1, thickness = 1, outerNodeCount = 16, mass = 1, friction = 100, stiffness = 100, damping = 0) {
+    const { points } = getCircleData([0, 0, 0], radius, outerNodeCount);
+
+    return createCylinder(physicsObject, faceMaterial, edgeMaterial, centerPosition, points, thickness, mass, friction, stiffness, damping);
+}
+
+
+export function createCar(physicsObject, baseMaterial = 0, tireMaterial = 0, rimMaterial = 0, centerPosition = [0, 0, 0], basePoints, baseThickness, wheelRadius = 5, wheelThickness = 3, wheelbaseWidth = 10, frontWheelZOffset = 10, rearWheelZOffset = -10, baseYOffset = 0, wheelOuterNodeCount = 12, mass = 1, friction = 100, stiffness = 100, damping = 0) {
+    const basePosition = [centerPosition[0], centerPosition[1] + baseYOffset, centerPosition[2]];
+    const base = createCylinder(physicsObject, baseMaterial, baseMaterial, basePosition, basePoints, baseThickness, mass, friction, stiffness, damping);
+    const baseNodes = [...base.centerNodes, ...base.outerNodes[0], ...base.outerNodes[1]];
+
+    function addWheel(xOffset, zOffset) {
+        const wheelPosition = [centerPosition[0] + xOffset, centerPosition[1], centerPosition[2] + zOffset];
+        const wheel = createCircularCylinder(physicsObject, rimMaterial, tireMaterial, wheelPosition, wheelRadius, wheelThickness, wheelOuterNodeCount, mass, friction, stiffness, damping);
+        const [centerNode1, centerNode2] = wheel.centerNodes;
+        const [outerNodes1, outerNodes2] = wheel.outerNodes;
+
+        for (const centerNode of [centerNode1, centerNode2]) {
+            for (const node of baseNodes) {
+                physicsObject.addSpring(centerNode, node, stiffness, damping);
+            }
+        }
+
+        return [[centerNode1, outerNodes1], [centerNode2, outerNodes2]];
+    }
+
+    const fl = addWheel(-wheelbaseWidth * 0.5, frontWheelZOffset);
+    const fr = addWheel(wheelbaseWidth * 0.5, frontWheelZOffset);
+    const rl = addWheel(-wheelbaseWidth * 0.5, rearWheelZOffset);
+    const rr = addWheel(wheelbaseWidth * 0.5, rearWheelZOffset);
+
+    return { base: baseNodes, fl, fr, rl, rr };
+}
+
+export function applyDiskSpin(physicsObject, disk, force = 1, clockwise = false) {
+    const [centerNode, outerNodes] = disk;
+
+    if (outerNodes.length < 2) {
+        return;
+    }
+
+    const center = centerNode.position;
+
+    let normal = [0, 0, 0];
+
+    for (let i = 0; i < outerNodes.length; i++) {
+        const a = outerNodes[i].position;
+        const b = outerNodes[(i + 1) % outerNodes.length].position;
+
+        const ax = a[0] - center[0];
+        const ay = a[1] - center[1];
+        const az = a[2] - center[2];
+
+        const bx = b[0] - center[0];
+        const by = b[1] - center[1];
+        const bz = b[2] - center[2];
+
+        normal[0] += ay * bz - az * by;
+        normal[1] += az * bx - ax * bz;
+        normal[2] += ax * by - ay * bx;
+    }
+
+    const normalLength = Math.hypot(normal[0], normal[1], normal[2]);
+
+    if (normalLength < 1e-8) {
+        return;
+    }
+
+    normal[0] /= normalLength;
+    normal[1] /= normalLength;
+    normal[2] /= normalLength;
+
+    const direction = clockwise ? -1 : 1;
+
+    for (const node of outerNodes) {
+        const p = node.position;
+
+        let rx = p[0] - center[0];
+        let ry = p[1] - center[1];
+        let rz = p[2] - center[2];
+
+        const normalComponent = rx * normal[0] + ry * normal[1] + rz * normal[2];
+
+        rx -= normalComponent * normal[0];
+        ry -= normalComponent * normal[1];
+        rz -= normalComponent * normal[2];
+
+        const radialLength = Math.hypot(rx, ry, rz);
+
+        if (radialLength < 1e-8) {
+            continue;
+        }
+
+        rx /= radialLength;
+        ry /= radialLength;
+        rz /= radialLength;
+
+        let tx = normal[1] * rz - normal[2] * ry;
+        let ty = normal[2] * rx - normal[0] * rz;
+        let tz = normal[0] * ry - normal[1] * rx;
+
+        tx *= direction;
+        ty *= direction;
+        tz *= direction;
+
+        physicsObject.applyForce(node, [tx, ty, tz], force);
+    }
+}
