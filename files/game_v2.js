@@ -49,20 +49,23 @@ let carData = null;
 let camera = new Camera([0, 0, 10], 10, 0, 1000);
 let resolutionScale = 0.4;
 let controlType = "Car";
+let xRayEnabled = false;
 
 const SPHERE_FORCE = 5;
-const CAR_FORCE = 1;
+const CAR_DRIVE_SPEED = 40;
+const CAR_STEER_SPEED = 40;
+const CAR_ACCELERATION = 0.04;
 
 const carBodyData = [
-    [-1.6, 0],
+    [-1.8, 0],
     [1.8, 0],
     [2, 0.2],
     [1.8, 0.6],
     [0.8, 0.8],
     [0.2, 1.2],
     [-1.4, 1.2],
-    [-2, 0.8],
-    [-1.8, 0.2],
+    [-2.1, 0.8],
+    [-2, 0.2],
 ];
 
 function reset() {
@@ -78,7 +81,7 @@ function reset() {
         sphereCenter = softbodyGenerator.createIcosphere(physics, [0, 2, 0], 2, 1, mass, friction, stiffness, centerStiffness, damping);
     }
     else if (controlType == "Car") {
-        carData = softbodyGenerator.createCar(physics, 5, 7, 8, [0, 1, 0], carBodyData, 1.6, 0.4, 0.4, 1.8, -1.2, 1.2, 0.2, 12, 0.1, 400, 200, 1);
+        carData = softbodyGenerator.createCar(physics, 5, 7, 8, [0, 1, 0], carBodyData, 1.6, 0.4, 0.3, 1.6, -1.2, 1.2, 0, 16, 0.1, 100, 400, 1);
 
         const length = carBodyData.length;
         physics.renderTriangles[4][9] = 6; // side window
@@ -90,8 +93,8 @@ function reset() {
         physics.renderTriangles[length * 2][9] = 8; // bottom
         physics.renderTriangles[length * 2 + 1][9] = 8;
 
-        physics.renderTriangles[length * 2 + 2][9] = 6; // front bumper
-        physics.renderTriangles[length * 2 + 3][9] = 6;
+        physics.renderTriangles[length * 2 + 2][9] = 7; // front bumper
+        physics.renderTriangles[length * 2 + 3][9] = 7;
 
         physics.renderTriangles[length * 2 + 8][9] = 6; // windshield
         physics.renderTriangles[length * 2 + 9][9] = 6;
@@ -99,8 +102,8 @@ function reset() {
         physics.renderTriangles[length * 2 + 12][9] = 6; // rear window
         physics.renderTriangles[length * 2 + 13][9] = 6;
 
-        physics.renderTriangles[length * 2 + 16][9] = 6; // rear bumper
-        physics.renderTriangles[length * 2 + 17][9] = 6;
+        physics.renderTriangles[length * 2 + 16][9] = 7; // rear bumper
+        physics.renderTriangles[length * 2 + 17][9] = 7;
     }
 }
 
@@ -136,11 +139,34 @@ function textureTerrainTiles(tiles, steepnessModifier = 1) {
     }
 }
 
+function drawSprings() {
+    overlayContext.strokeStyle = "rgb(120, 240, 200)";
+    overlayContext.lineWidth = 0.4;
+    overlayContext.beginPath();
+    const viewScale = canvasOverlay.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+
+    for (const spring of physics.springs) {
+        const a = renderer.projectPoint(renderer.toLocalSpace(spring.nodeA.position, camera.cframe), viewScale);
+        const b = renderer.projectPoint(renderer.toLocalSpace(spring.nodeB.position, camera.cframe), viewScale);
+
+        if (a[2] >= 0 || b[2] >= 0) continue;
+
+        overlayContext.moveTo(canvasOverlay.width / 2 - renderer.width / 2 + a[0], canvasOverlay.height / 2 - renderer.height / 2 + a[1]);
+        overlayContext.lineTo(canvasOverlay.width / 2 - renderer.width / 2 + b[0], canvasOverlay.height / 2 - renderer.height / 2 + b[1]);
+    }
+
+    overlayContext.stroke();
+}
+
 function updateOverlay() {
     overlayContext.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
 
     overlayContext.imageSmoothingEnabled = false;
     overlayContext.drawImage(canvas3D, 0, 0, canvasOverlay.width, canvasOverlay.height);
+
+    if (xRayEnabled) {
+        drawSprings();
+    }
 
     overlayContext.fillStyle = "rgb(0, 0, 200)";
     overlayContext.font = "32px system-ui";
@@ -154,9 +180,9 @@ function updateOverlay() {
         overlayContext.fillText("Camera Zoom: Mouse Wheel", canvasOverlay.width - 300, 110);
         overlayContext.fillText("Decrease Resolution: O", canvasOverlay.width - 300, 140);
         overlayContext.fillText("Increase Resolution: P", canvasOverlay.width - 300, 170);
-        overlayContext.fillText("Reload Car: R", canvasOverlay.width - 300, 200);
-        overlayContext.fillText("Reload Ball: T", canvasOverlay.width - 300, 230);
-
+        overlayContext.fillText("Toggle X-Ray: X", canvasOverlay.width - 300, 200);
+        overlayContext.fillText("Reload Car: R", canvasOverlay.width - 300, 230);
+        overlayContext.fillText("Reload Ball: T", canvasOverlay.width - 300, 260);
     }
     else {
         overlayContext.fillText("See Controls (C)", canvasOverlay.width - 300, 40);
@@ -221,18 +247,18 @@ function updateControlForces() {
         let steering = (keyData["d"] & 1) - (keyData["a"] & 1);
 
         if (throttle != 0 || steering != 0) {
-            let leftForce = throttle - steering;
-            let rightForce = throttle + steering;
+            let leftSpeed = throttle * CAR_DRIVE_SPEED - steering * CAR_STEER_SPEED;
+            let rightSpeed = throttle * CAR_DRIVE_SPEED + steering * CAR_STEER_SPEED;
 
-            softbodyGenerator.applyDiskSpin(physics, carData.fl[0], leftForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.fl[1], leftForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.rl[0], leftForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.rl[1], leftForce * CAR_FORCE);
+            softbodyGenerator.applyDiskSpin(physics, carData.fl[0], leftSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.fl[1], leftSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.rl[0], leftSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.rl[1], leftSpeed, CAR_ACCELERATION);
 
-            softbodyGenerator.applyDiskSpin(physics, carData.fr[0], rightForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.fr[1], rightForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.rr[0], rightForce * CAR_FORCE);
-            softbodyGenerator.applyDiskSpin(physics, carData.rr[1], rightForce * CAR_FORCE);
+            softbodyGenerator.applyDiskSpin(physics, carData.fr[0], rightSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.fr[1], rightSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.rr[0], rightSpeed, CAR_ACCELERATION);
+            softbodyGenerator.applyDiskSpin(physics, carData.rr[1], rightSpeed, CAR_ACCELERATION);
         }
     }
 }
@@ -279,6 +305,9 @@ window.addEventListener("keyup", upEvent => {
     if (upEvent.key == "t") {
         controlType = "Ball";
         reset();
+    }
+    if (upEvent.key == "x") {
+        xRayEnabled = !xRayEnabled;
     }
     else if (upEvent.key == "o") {
         resolutionScale = Math.max(Math.min(resolutionScale * 0.8, 1), 0.01);
@@ -333,10 +362,10 @@ renderer.materials = [
     await new Material("./assets/materials/rockiest_grass", 4).load(),
     await new Material("./assets/materials/pebbles", 8).load(),
     await new Material("./assets/materials/car", 1).load(),
-    await new Material("./assets/materials/painted_metal", 0.5).load(),
-    await new Material("./assets/materials/dark_metal", 2).load(),
-    await new Material("./assets/materials/rubber", 0.5).load(),
-    await new Material("./assets/materials/steel", 2).load(),
+    await new Material("./assets/materials/painted_metal", 1).load(),
+    await new Material("./assets/materials/glass", 4).load(),
+    await new Material("./assets/materials/rubber", 1).load(),
+    await new Material("./assets/materials/steel", 0.5).load(),
     //await new Material("./assets/materials/test", 1).load(),
 ]
 titleScreen.style.display = "none";

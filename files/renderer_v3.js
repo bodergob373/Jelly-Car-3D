@@ -1,6 +1,6 @@
 import * as value3 from "./value3.js";
 
-const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [0.5, 0.5, 0.5, 1] }], nor_gl: [{ width: 1, height: 1, data: [0.5, 0.5, 1, 1] }] };
+const DEFAULT_MATERIAL = { scale: 1, diff: [{ width: 1, height: 1, data: [127, 127, 127, 1] }], nor_gl: [{ width: 1, height: 1, data: [127, 127, 255, 1] }] };
 
 export class Renderer {
     constructor(canvas) {
@@ -11,10 +11,10 @@ export class Renderer {
 
         this.DAY_FADE_START = -0.2;
         this.DAY_FADE_END = 0.2;
-        this.MAX_SUNLIGHT_INTENSITY = 1.4;
+        this.MAX_SUNLIGHT_INTENSITY = 1.2;
         this.AMBIENT_INTENSITY_POW = 2;
         this.MIN_AMBIENT_INTENSITY = 0.2;
-        this.MAX_AMBIENT_INTENSITY = 0.5;
+        this.MAX_AMBIENT_INTENSITY = 0.4;
         this.AMBIENT_COLOR_CURVE = [
             [-1, [200, 220, 255]],
             [-0.2, [180, 200, 255]],
@@ -260,9 +260,9 @@ export class Renderer {
                             const texR = texDiffMip.data[diffIndex] + 0.05;
                             const texG = texDiffMip.data[diffIndex + 1] + 0.05;
                             const texB = texDiffMip.data[diffIndex + 2] + 0.05;
-                            const texNormX = texNormMip.data[normIndex] * 2 - 1;
-                            const texNormY = texNormMip.data[normIndex + 1] * 2 - 1;
-                            const texNormZ = texNormMip.data[normIndex + 2] * 2 - 1;
+                            const texNormX = texNormMip.data[normIndex] / 255 * 2 - 1;
+                            const texNormY = texNormMip.data[normIndex + 1] / 255 * 2 - 1;
+                            const texNormZ = texNormMip.data[normIndex + 2] / 255 * 2 - 1;
                             let normX = tan[0] * texNormX + bitan[0] * texNormY + triangleNormal[0] * texNormZ;
                             let normY = tan[1] * texNormX + bitan[1] * texNormY + triangleNormal[1] * texNormZ;
                             let normZ = tan[2] * texNormX + bitan[2] * texNormY + triangleNormal[2] * texNormZ;
@@ -272,9 +272,9 @@ export class Renderer {
                             const lightB = ambientB + sunlightB * sunlightLambert;
 
                             this.zBuffer[bufferIndex] = pZ;
-                            this.imageData[imageIndex] = texR * lightR;
-                            this.imageData[imageIndex + 1] = texG * lightG;
-                            this.imageData[imageIndex + 2] = texB * lightB;
+                            this.imageData[imageIndex] = texR * lightR / 255;
+                            this.imageData[imageIndex + 1] = texG * lightG / 255;
+                            this.imageData[imageIndex + 2] = texB * lightB / 255;
                             this.imageData[imageIndex + 3] = 255;
                         }
                     }
@@ -381,9 +381,9 @@ export class Renderer {
                     const primaryV = Math.floor(faceY * primaryTexture.height);
                     const primaryIndex = (primaryV * primaryTexture.width + primaryU) * 4;
 
-                    let r = primaryTexture.data[primaryIndex] * 255;
-                    let g = primaryTexture.data[primaryIndex + 1] * 255;
-                    let b = primaryTexture.data[primaryIndex + 2] * 255;
+                    let r = primaryTexture.data[primaryIndex];
+                    let g = primaryTexture.data[primaryIndex + 1];
+                    let b = primaryTexture.data[primaryIndex + 2];
 
                     if (a1 < 1) {
                         const secondaryTexture = secondaryFaces[skyboxFace];
@@ -392,9 +392,9 @@ export class Renderer {
                         const secondaryIndex = (secondaryV * secondaryTexture.width + secondaryU) * 4;
                         const a2 = 1 - a1;
 
-                        r = r * a1 + secondaryTexture.data[secondaryIndex] * 255 * a2;
-                        g = g * a1 + secondaryTexture.data[secondaryIndex + 1] * 255 * a2;
-                        b = b * a1 + secondaryTexture.data[secondaryIndex + 2] * 255 * a2;
+                        r = r * a1 + secondaryTexture.data[secondaryIndex] * a2;
+                        g = g * a1 + secondaryTexture.data[secondaryIndex + 1] * a2;
+                        b = b * a1 + secondaryTexture.data[secondaryIndex + 2] * a2;
                     }
 
                     this.imageData[i] = r;
@@ -446,10 +446,10 @@ export class Renderer {
 
                         const pixelIndex = (y * this.width + x) * 4;
                         const textureIndex = (ty * sunTexture.width + tx) * 4;
-                        const sunR = sunTexture.data[textureIndex] * 255;
-                        const sunG = sunTexture.data[textureIndex + 1] * 255;
-                        const sunB = sunTexture.data[textureIndex + 2] * 255;
-                        const sunA = sunTexture.data[textureIndex + 3] * this.daytimeAmountModifier;
+                        const sunR = sunTexture.data[textureIndex];
+                        const sunG = sunTexture.data[textureIndex + 1];
+                        const sunB = sunTexture.data[textureIndex + 2];
+                        const sunA = sunTexture.data[textureIndex + 3] / 255 * this.daytimeAmountModifier;
                         const skyA = 1 - sunA;
 
                         this.imageData[pixelIndex] = sunR * sunA + this.imageData[pixelIndex] * skyA;

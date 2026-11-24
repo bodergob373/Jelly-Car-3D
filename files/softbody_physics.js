@@ -6,6 +6,7 @@ export class SoftbodyPhysics {
         this.springs = [];
         this.renderTriangles = [];
         this.triangles = [];
+        this.velocityDamping = 0.1;
     }
 
     applyForce(node, direction, magnitude) {
@@ -97,12 +98,17 @@ export class SoftbodyPhysics {
             this.applySpringForce(spring, dt);
         }
 
+        const decay = Math.exp(-this.velocityDamping * dt);
+
         for (const node of this.nodes) {
             const invMass = 1 / node.mass;
 
             node.velocity[0] += node.force[0] * invMass * dt;
             node.velocity[1] += node.force[1] * invMass * dt;
             node.velocity[2] += node.force[2] * invMass * dt;
+            node.velocity[0] *= decay;
+            node.velocity[1] *= decay;
+            node.velocity[2] *= decay;
             node.position[0] += node.velocity[0] * dt;
             node.position[1] += node.velocity[1] * dt;
             node.position[2] += node.velocity[2] * dt;
@@ -139,8 +145,8 @@ export class SoftbodyPhysics {
         //const force = spring.stiffness * displacement + spring.damping * relVelocity;
 
         const ratio = length / spring.freeLength;
-        const distanceToLimit = Math.min(ratio - 0.6, 1.6 - ratio);
-        const multiplier = 1 / Math.pow(distanceToLimit, 2);
+        const distanceToLimit = Math.min(Math.max(ratio - 0.6, 0), Math.max(1.6 - ratio, 0));
+        const multiplier = Math.min(1 / distanceToLimit, 100);
         const force = spring.stiffness * multiplier * displacement + spring.damping * relVelocity;
 
         const fx = force * nx;

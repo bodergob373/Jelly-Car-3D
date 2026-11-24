@@ -1,20 +1,15 @@
-import { TextureLoader } from "./texture_loader.js";
+import { TextureLoader } from "./texture_loader_v2.js";
 
 export class Material {
     static MAPS = [
-        //"ao",
         "diff",
-        //"disp",
-        //"metal",
         "nor_gl",
-        //"rough"
     ];
 
     static FORMATS = [
         "png",
         "jpg",
         "jpeg",
-        "exr"
     ];
 
     constructor(path, scale = 1) {
@@ -37,7 +32,7 @@ export class Material {
                             return [name, image];
                         }
                     } catch (error) {
-                        return [name, { width: 1, height: 1, data: [0, 0, 0, 1] }];
+                        return [name, { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 255]) }];
                     }
                 }
 

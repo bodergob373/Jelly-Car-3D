@@ -1,4 +1,4 @@
-import { TextureLoader } from "./texture_loader.js";
+import { TextureLoader } from "./texture_loader_v2.js";
 
 export class Sky {
     static TEXTURES = [
@@ -15,7 +15,6 @@ export class Sky {
         "png",
         "jpg",
         "jpeg",
-        "exr",
     ];
 
     constructor(path, sunAngularSize = 20) {
@@ -39,7 +38,7 @@ export class Sky {
                             return [name, image];
                         }
                     } catch (error) {
-                        return [name, { width: 1, height: 1, data: [0, 0, 0, 1] }]
+                        return [name, { width: 1, height: 1, data: new Uint8Array([0, 0, 0, 255]) }]
                     }
                 }
 

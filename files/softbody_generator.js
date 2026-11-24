@@ -206,6 +206,8 @@ export function createCylinder(physicsObject, faceMaterial, edgeMaterial, center
         triangleFunctions.uvMapTriangle(triangle2);
     }
 
+    physicsObject.addSpring(centerNode1, centerNode2, stiffness, damping);
+
     return { centerNodes: [centerNode1, centerNode2], outerNodes: [outerNodes1, outerNodes2] };
 }
 
@@ -220,6 +222,7 @@ export function createCar(physicsObject, baseMaterial = 0, tireMaterial = 0, rim
     const basePosition = [centerPosition[0], centerPosition[1] + baseYOffset, centerPosition[2]];
     const base = createCylinder(physicsObject, baseMaterial, baseMaterial, basePosition, basePoints, baseThickness, mass, friction, stiffness, damping);
     const baseNodes = [...base.centerNodes, ...base.outerNodes[0], ...base.outerNodes[1]];
+    const carCenterNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + 0.8, centerPosition[2]], mass, 0);
 
     function addWheel(xOffset, zOffset) {
         const wheelPosition = [centerPosition[0] + xOffset, centerPosition[1], centerPosition[2] + zOffset];
@@ -231,6 +234,8 @@ export function createCar(physicsObject, baseMaterial = 0, tireMaterial = 0, rim
             for (const node of baseNodes) {
                 physicsObject.addSpring(centerNode, node, stiffness, damping);
             }
+
+            physicsObject.addSpring(centerNode, carCenterNode, stiffness, damping);
         }
 
         return [[centerNode1, outerNodes1], [centerNode2, outerNodes2]];
@@ -241,15 +246,25 @@ export function createCar(physicsObject, baseMaterial = 0, tireMaterial = 0, rim
     const rl = addWheel(-wheelbaseWidth * 0.5, rearWheelZOffset);
     const rr = addWheel(wheelbaseWidth * 0.5, rearWheelZOffset);
 
+    const wheels = [fl, fr, rl, rr];
+
+    for (let i = 0; i < wheels.length; i++) {
+        for (let j = i + 1; j < wheels.length; j++) {
+            for (const nodeA of [wheels[i][0][0], wheels[i][1][0]]) {
+                for (const nodeB of [wheels[j][0][0], wheels[j][1][0]]) {
+                    physicsObject.addSpring(nodeA, nodeB, stiffness, damping);
+                }
+            }
+        }
+    }
+
     return { base: baseNodes, fl, fr, rl, rr };
 }
 
-export function applyDiskSpin(physicsObject, disk, force = 1, clockwise = false) {
+export function applyDiskSpin(physicsObject, disk, targetSpeed = 0, strength = 1) {
     const [centerNode, outerNodes] = disk;
 
-    if (outerNodes.length < 2) {
-        return;
-    }
+    if (outerNodes.length < 2) return;
 
     const center = centerNode.position;
 
@@ -272,17 +287,38 @@ export function applyDiskSpin(physicsObject, disk, force = 1, clockwise = false)
         normal[2] += ax * by - ay * bx;
     }
 
-    const normalLength = Math.hypot(normal[0], normal[1], normal[2]);
+    const normalLength = Math.hypot(...normal);
 
-    if (normalLength < 1e-8) {
-        return;
+    if (normalLength < 1e-8) return;
+
+    normal = normal.map(v => v / normalLength);
+
+    let angularVelocity = 0;
+    let totalWeight = 0;
+
+    for (const node of outerNodes) {
+        const p = node.position;
+        const v = node.velocity;
+
+        const rx = p[0] - center[0];
+        const ry = p[1] - center[1];
+        const rz = p[2] - center[2];
+
+        const radialDistanceSq = rx * rx + ry * ry + rz * rz;
+
+        if (radialDistanceSq < 1e-8) continue;
+
+        const angularSpeed = (normal[0] * (ry * v[2] - rz * v[1]) + normal[1] * (rz * v[0] - rx * v[2]) + normal[2] * (rx * v[1] - ry * v[0])) / radialDistanceSq;
+
+        angularVelocity += angularSpeed;
+        totalWeight++;
     }
 
-    normal[0] /= normalLength;
-    normal[1] /= normalLength;
-    normal[2] /= normalLength;
+    if (totalWeight === 0) return;
 
-    const direction = clockwise ? -1 : 1;
+    angularVelocity /= totalWeight;
+
+    const speedError = targetSpeed - angularVelocity;
 
     for (const node of outerNodes) {
         const p = node.position;
@@ -299,22 +335,16 @@ export function applyDiskSpin(physicsObject, disk, force = 1, clockwise = false)
 
         const radialLength = Math.hypot(rx, ry, rz);
 
-        if (radialLength < 1e-8) {
-            continue;
-        }
+        if (radialLength < 1e-8) continue;
 
         rx /= radialLength;
         ry /= radialLength;
         rz /= radialLength;
 
-        let tx = normal[1] * rz - normal[2] * ry;
-        let ty = normal[2] * rx - normal[0] * rz;
-        let tz = normal[0] * ry - normal[1] * rx;
+        const tx = normal[1] * rz - normal[2] * ry;
+        const ty = normal[2] * rx - normal[0] * rz;
+        const tz = normal[0] * ry - normal[1] * rx;
 
-        tx *= direction;
-        ty *= direction;
-        tz *= direction;
-
-        physicsObject.applyForce(node, [tx, ty, tz], force);
+        physicsObject.applyForce(node, [tx, ty, tz], speedError * strength);
     }
 }
