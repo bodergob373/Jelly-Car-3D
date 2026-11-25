@@ -51,18 +51,6 @@ export class SoftbodyPhysics {
         }
     }
 
-    rebuildTriangles(triangleDefinitions = []) {
-        this.triangles.length = 0;
-
-        for (const definition of triangleDefinitions) {
-            this.addTriangle(
-                definition[0] ?? null,
-                definition[1] ?? null,
-                definition[2] ?? null
-            );
-        }
-    }
-
     addNode(position, mass = 1, friction = 0.5) {
         const node = { position: [...position], velocity: [0, 0, 0], force: [0, 0, 0], mass, friction };
 
@@ -145,8 +133,8 @@ export class SoftbodyPhysics {
         //const force = spring.stiffness * displacement + spring.damping * relVelocity;
 
         const ratio = length / spring.freeLength;
-        const distanceToLimit = Math.min(Math.max(ratio - 0.6, 0), Math.max(1.6 - ratio, 0));
-        const multiplier = Math.min(1 / distanceToLimit, 100);
+        const distanceToLimit = Math.min(Math.max(ratio - 0.2, 0), Math.max(2 - ratio, 0));
+        const multiplier = Math.min(1 / distanceToLimit, 1000);
         const force = spring.stiffness * multiplier * displacement + spring.damping * relVelocity;
 
         const fx = force * nx;

@@ -7,6 +7,8 @@ import { Renderer } from "./renderer_v3.js";
 import { Camera } from "./camera.js";
 import { ProceduralTerrain } from "./procedural_terrain.js";
 import { SoftbodyPhysics } from "./softbody_physics.js";
+import { NodeProperties } from "./node_properties.js";
+import { SpringProperties } from "./spring_properties.js";
 
 const canvas3D = document.getElementById("canvas3D");
 const titleScreen = document.getElementById("titleScreen");
@@ -36,9 +38,9 @@ const TERRAIN_LAYERS = [
 ]
 
 const TERRAIN_SEED = Date.now();
-const terrain = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 4, 0, 100, 100);
-const terrainFar1 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 8, -0.5, 200, 200, 100, 100);
-const terrainFar2 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 16, -1.5, 600, 600, 200, 200);
+const terrain = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 2, 10, 40, 40);
+const terrainFar1 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 4, 9, 80, 80, 40, 40);
+const terrainFar2 = new ProceduralTerrain(TERRAIN_SEED, TERRAIN_LAYERS, 16, 8, 640, 640, 80, 80);
 
 const keyData = [];
 let mouseDelta = [0, 0];
@@ -49,24 +51,47 @@ let carData = null;
 let camera = new Camera([0, 0, 10], 10, 0, 1000);
 let resolutionScale = 0.4;
 let controlType = "Car";
+let carModelIndex = 0;
 let xRayEnabled = false;
+
+const carModels = [
+    {
+        bodyShape: [
+            [-1.8, 0],
+            [1.8, 0],
+            [2, 0.2],
+            [1.8, 0.6],
+            [0.8, 0.8],
+            [0.2, 1.2],
+            [-1.4, 1.2],
+            [-2.1, 0.8],
+            [-2, 0.2],
+        ]
+    },
+    {
+        bodyShape: [
+            [-2, 0],
+            [1.8, 0],
+            [1.8, 0.3],
+            [1.7, 0.3],
+            [1.7, 0.5],
+            [1.5, 0.6],
+            [0.7, 0.7],
+            [0.3, 1.1],
+            [0.1, 1.2],
+            [-1, 1.2],
+            [-1.2, 1.1],
+            [-1.5, 0.8],
+            [-1.9, 0.2],
+            [-2, 0.2],
+        ]
+    },
+]
 
 const SPHERE_FORCE = 5;
 const CAR_DRIVE_SPEED = 40;
 const CAR_STEER_SPEED = 40;
-const CAR_ACCELERATION = 0.04;
-
-const carBodyData = [
-    [-1.8, 0],
-    [1.8, 0],
-    [2, 0.2],
-    [1.8, 0.6],
-    [0.8, 0.8],
-    [0.2, 1.2],
-    [-1.4, 1.2],
-    [-2.1, 0.8],
-    [-2, 0.2],
-];
+const CAR_ACCELERATION = 0.4;
 
 function reset() {
     physics = new SoftbodyPhysics(9.81, terrain);
@@ -74,36 +99,97 @@ function reset() {
     if (controlType == "Ball") {
         const mass = 0.01;
         const friction = 200;
-        const stiffness = 4;
+        const stiffness = 8;
         const centerStiffness = 1;
-        const damping = 0.1;
+        const damping = 0.04;
 
         sphereCenter = softbodyGenerator.createIcosphere(physics, [0, 2, 0], 2, 1, mass, friction, stiffness, centerStiffness, damping);
     }
     else if (controlType == "Car") {
-        carData = softbodyGenerator.createCar(physics, 5, 7, 8, [0, 1, 0], carBodyData, 1.6, 0.4, 0.3, 1.6, -1.2, 1.2, 0, 16, 0.1, 100, 400, 1);
+        if (carModelIndex == 0) {
+            const axleSpringProperties = new SpringProperties(800, 2);
+            const chassisSpringProperties = new SpringProperties(12800, 8);
+            const frontSuspensionProperties = new SpringProperties(3200, 32);
+            const rearSuspensionProperties = new SpringProperties(3200, 32);
+            const tireSpringProperties = new SpringProperties(800, 8);
+            const baseSpringProperties = new SpringProperties(800, 2);
 
-        const length = carBodyData.length;
-        physics.renderTriangles[4][9] = 6; // side window
-        physics.renderTriangles[5][9] = 6;
+            const chassisNodeProperties = new NodeProperties(6.4, 0);
+            const baseNodeProperties = new NodeProperties(1.6, 20);
+            const tireNodeProperties = new NodeProperties(0.1, 400);
 
-        physics.renderTriangles[length + 4][9] = 6; // side window
-        physics.renderTriangles[length + 5][9] = 6;
+            carData = softbodyGenerator.createCar(physics, 5, 7, 8, [0, 1, 0], carModels[carModelIndex].bodyShape, 1.6, 0.4, 0.2, 0.4, 0.2, 1.6, 1.6, -1.2, 1.2, 0, 12, chassisNodeProperties, chassisSpringProperties, frontSuspensionProperties, rearSuspensionProperties, axleSpringProperties, tireNodeProperties, tireSpringProperties, baseNodeProperties, baseSpringProperties);
 
-        physics.renderTriangles[length * 2][9] = 8; // bottom
-        physics.renderTriangles[length * 2 + 1][9] = 8;
+            const length = carModels[carModelIndex].bodyShape.length;
 
-        physics.renderTriangles[length * 2 + 2][9] = 7; // front bumper
-        physics.renderTriangles[length * 2 + 3][9] = 7;
+            physics.renderTriangles[4][9] = 6; // side window
+            physics.renderTriangles[5][9] = 6;
 
-        physics.renderTriangles[length * 2 + 8][9] = 6; // windshield
-        physics.renderTriangles[length * 2 + 9][9] = 6;
+            physics.renderTriangles[length + 4][9] = 6; // side window
+            physics.renderTriangles[length + 5][9] = 6;
 
-        physics.renderTriangles[length * 2 + 12][9] = 6; // rear window
-        physics.renderTriangles[length * 2 + 13][9] = 6;
+            physics.renderTriangles[length * 2][9] = 8; // bottom
+            physics.renderTriangles[length * 2 + 1][9] = 8;
 
-        physics.renderTriangles[length * 2 + 16][9] = 7; // rear bumper
-        physics.renderTriangles[length * 2 + 17][9] = 7;
+            physics.renderTriangles[length * 2 + 2][9] = 7; // front bumper
+            physics.renderTriangles[length * 2 + 3][9] = 7;
+
+            physics.renderTriangles[length * 2 + 8][9] = 6; // windshield
+            physics.renderTriangles[length * 2 + 9][9] = 6;
+
+            physics.renderTriangles[length * 2 + 12][9] = 6; // rear window
+            physics.renderTriangles[length * 2 + 13][9] = 6;
+
+            physics.renderTriangles[length * 2 + 16][9] = 7; // rear bumper
+            physics.renderTriangles[length * 2 + 17][9] = 7;
+        }
+        else if (carModelIndex == 1) {
+            const axleSpringProperties = new SpringProperties(400, 2);
+            const chassisSpringProperties = new SpringProperties(12800, 8);
+            const frontSuspensionProperties = new SpringProperties(1200, 32);
+            const rearSuspensionProperties = new SpringProperties(800, 32);
+            const tireSpringProperties = new SpringProperties(800, 4);
+            const baseSpringProperties = new SpringProperties(800, 2);
+
+            const chassisNodeProperties = new NodeProperties(6.4, 0);
+            const baseNodeProperties = new NodeProperties(1.6, 20);
+            const tireNodeProperties = new NodeProperties(0.1, 800);
+
+            carData = softbodyGenerator.createCar(physics, 5, 7, 8, [0, 1, 0], carModels[carModelIndex].bodyShape, 1.5, 0.35, 0.15, 0.35, 0.15, 1.6, 1.2, -1.2, 1.2, 0.15, 8, chassisNodeProperties, chassisSpringProperties, frontSuspensionProperties, rearSuspensionProperties, axleSpringProperties, tireNodeProperties, tireSpringProperties, baseNodeProperties, baseSpringProperties);
+
+            const length = carModels[carModelIndex].bodyShape.length;
+
+            physics.renderTriangles[6][9] = 6; // side window
+            physics.renderTriangles[7][9] = 6;
+            physics.renderTriangles[8][9] = 6;
+            physics.renderTriangles[9][9] = 6;
+            physics.renderTriangles[10][9] = 6;
+
+            physics.renderTriangles[length + 6][9] = 6; // side window
+            physics.renderTriangles[length + 7][9] = 6;
+            physics.renderTriangles[length + 8][9] = 6;
+            physics.renderTriangles[length + 9][9] = 6;
+            physics.renderTriangles[length + 10][9] = 6;
+
+            physics.renderTriangles[length * 2][9] = 8; // bottom
+            physics.renderTriangles[length * 2 + 1][9] = 8;
+
+            physics.renderTriangles[length * 2 + 2][9] = 7; // front bumper
+            physics.renderTriangles[length * 2 + 3][9] = 7;
+            physics.renderTriangles[length * 2 + 4][9] = 7;
+            physics.renderTriangles[length * 2 + 5][9] = 7;
+
+            physics.renderTriangles[length * 2 + 12][9] = 6; // windshield
+            physics.renderTriangles[length * 2 + 13][9] = 6;
+
+            physics.renderTriangles[length * 2 + 20][9] = 6; // rear window
+            physics.renderTriangles[length * 2 + 21][9] = 6;
+
+            physics.renderTriangles[length * 2 + 24][9] = 7; // rear bumper
+            physics.renderTriangles[length * 2 + 25][9] = 7;
+            physics.renderTriangles[length * 2 + 26][9] = 7;
+            physics.renderTriangles[length * 2 + 27][9] = 7;
+        }
     }
 }
 
@@ -140,7 +226,7 @@ function textureTerrainTiles(tiles, steepnessModifier = 1) {
 }
 
 function drawSprings() {
-    overlayContext.strokeStyle = "rgb(120, 240, 200)";
+    overlayContext.strokeStyle = "rgb(160, 250, 220)";
     overlayContext.lineWidth = 0.4;
     overlayContext.beginPath();
     const viewScale = canvasOverlay.height / (2 * Math.tan(camera.fov * Math.PI / 360));
@@ -178,11 +264,11 @@ function updateOverlay() {
         overlayContext.font = "20px system-ui";
         overlayContext.fillText("Movement: WASD", canvasOverlay.width - 300, 80);
         overlayContext.fillText("Camera Zoom: Mouse Wheel", canvasOverlay.width - 300, 110);
-        overlayContext.fillText("Decrease Resolution: O", canvasOverlay.width - 300, 140);
-        overlayContext.fillText("Increase Resolution: P", canvasOverlay.width - 300, 170);
-        overlayContext.fillText("Toggle X-Ray: X", canvasOverlay.width - 300, 200);
-        overlayContext.fillText("Reload Car: R", canvasOverlay.width - 300, 230);
-        overlayContext.fillText("Reload Ball: T", canvasOverlay.width - 300, 260);
+        overlayContext.fillText("Increase/Decrease Resolution: P/O", canvasOverlay.width - 300, 140);
+        overlayContext.fillText("Toggle X-Ray: X", canvasOverlay.width - 300, 170);
+        overlayContext.fillText("Reload Car: R", canvasOverlay.width - 300, 200);
+        overlayContext.fillText("Reload Ball: T", canvasOverlay.width - 300, 230);
+        overlayContext.fillText("Change Car: Q/E", canvasOverlay.width - 300, 260);
     }
     else {
         overlayContext.fillText("See Controls (C)", canvasOverlay.width - 300, 40);
@@ -197,7 +283,7 @@ function updateCamera() {
         nodes = physics.nodes;
     }
     else if (controlType == "Car") {
-        nodes = carData.base;
+        nodes = carData.chassis;
     }
 
     const nodeCount = nodes.length;
@@ -317,6 +403,18 @@ window.addEventListener("keyup", upEvent => {
         resolutionScale = Math.max(Math.min(resolutionScale * 1.2, 1), 0.01);
         resize();
     }
+    else if (upEvent.key == "q") {
+        if (controlType == "Car") {
+            carModelIndex = ((carModelIndex - 1) % carModels.length + carModels.length) % carModels.length;
+            reset();
+        }
+    }
+    else if (upEvent.key == "e") {
+        if (controlType == "Car") {
+            carModelIndex = (carModelIndex + 1) % carModels.length;
+            reset();
+        }
+    }
 })
 
 window.addEventListener("mousedown", clickEvent => {
@@ -362,10 +460,10 @@ renderer.materials = [
     await new Material("./assets/materials/rockiest_grass", 4).load(),
     await new Material("./assets/materials/pebbles", 8).load(),
     await new Material("./assets/materials/car", 1).load(),
-    await new Material("./assets/materials/painted_metal", 1).load(),
-    await new Material("./assets/materials/glass", 4).load(),
-    await new Material("./assets/materials/rubber", 1).load(),
-    await new Material("./assets/materials/steel", 0.5).load(),
+    await new Material("./assets/materials/painted_metal", 2).load(),
+    await new Material("./assets/materials/glass", 1).load(),
+    await new Material("./assets/materials/rubber", 0.5).load(),
+    await new Material("./assets/materials/steel", 4).load(),
     //await new Material("./assets/materials/test", 1).load(),
 ]
 titleScreen.style.display = "none";
