@@ -51,8 +51,8 @@ export class SoftbodyPhysics {
         }
     }
 
-    addNode(position, mass = 1, friction = 0.5) {
-        const node = { position: [...position], velocity: [0, 0, 0], force: [0, 0, 0], mass, friction };
+    addNode(position, mass = 1, friction = 0.5, collisionEnabled = true) {
+        const node = { position: [...position], velocity: [0, 0, 0], force: [0, 0, 0], mass, friction, collisionEnabled };
 
         this.nodes.push(node);
 
@@ -133,7 +133,7 @@ export class SoftbodyPhysics {
         //const force = spring.stiffness * displacement + spring.damping * relVelocity;
 
         const ratio = length / spring.freeLength;
-        const distanceToLimit = Math.min(Math.max(ratio - 0.2, 0), Math.max(2 - ratio, 0));
+        const distanceToLimit = Math.min(Math.max(ratio - 0.2, 0), Math.max(1.6 - ratio, 0));
         const multiplier = Math.min(1 / distanceToLimit, 1000);
         const force = spring.stiffness * multiplier * displacement + spring.damping * relVelocity;
 
@@ -150,39 +150,41 @@ export class SoftbodyPhysics {
     }
 
     resolveTerrainCollision(node, dt) {
-        const collision = this.terrainCollider.getSurfaceAt(node.position[0], node.position[2]);
+        if (node.collisionEnabled) {
+            const collision = this.terrainCollider.getSurfaceAt(node.position[0], node.position[2]);
 
-        if (!collision) return;
+            if (!collision) return;
 
-        const penetration = collision.height - node.position[1];
+            const penetration = collision.height - node.position[1];
 
-        if (penetration <= 0) return;
+            if (penetration <= 0) return;
 
-        const normal = collision.normal;
+            const normal = collision.normal;
 
-        node.position[0] += normal[0] * penetration;
-        node.position[1] += normal[1] * penetration;
-        node.position[2] += normal[2] * penetration;
+            node.position[0] += normal[0] * penetration;
+            node.position[1] += normal[1] * penetration;
+            node.position[2] += normal[2] * penetration;
 
-        const normalVelocity = node.velocity[0] * normal[0] + node.velocity[1] * normal[1] + node.velocity[2] * normal[2];
+            const normalVelocity = node.velocity[0] * normal[0] + node.velocity[1] * normal[1] + node.velocity[2] * normal[2];
 
-        if (normalVelocity < 0) {
-            node.velocity[0] -= normal[0] * normalVelocity;
-            node.velocity[1] -= normal[1] * normalVelocity;
-            node.velocity[2] -= normal[2] * normalVelocity;
+            if (normalVelocity < 0) {
+                node.velocity[0] -= normal[0] * normalVelocity;
+                node.velocity[1] -= normal[1] * normalVelocity;
+                node.velocity[2] -= normal[2] * normalVelocity;
+            }
+
+            const vx = node.velocity[0];
+            const vy = node.velocity[1];
+            const vz = node.velocity[2];
+            const vn = vx * normal[0] + vy * normal[1] + vz * normal[2];
+            const tangentX = vx - normal[0] * vn;
+            const tangentY = vy - normal[1] * vn;
+            const tangentZ = vz - normal[2] * vn;
+            const frictionFactor = Math.exp(-node.friction * dt);
+
+            node.velocity[0] = normal[0] * vn + tangentX * frictionFactor;
+            node.velocity[1] = normal[1] * vn + tangentY * frictionFactor;
+            node.velocity[2] = normal[2] * vn + tangentZ * frictionFactor;
         }
-
-        const vx = node.velocity[0];
-        const vy = node.velocity[1];
-        const vz = node.velocity[2];
-        const vn = vx * normal[0] + vy * normal[1] + vz * normal[2];
-        const tangentX = vx - normal[0] * vn;
-        const tangentY = vy - normal[1] * vn;
-        const tangentZ = vz - normal[2] * vn;
-        const frictionFactor = Math.exp(-node.friction * dt);
-
-        node.velocity[0] = normal[0] * vn + tangentX * frictionFactor;
-        node.velocity[1] = normal[1] * vn + tangentY * frictionFactor;
-        node.velocity[2] = normal[2] * vn + tangentZ * frictionFactor;
     }
 }

@@ -2,7 +2,7 @@ import * as value3 from "./value3.js";
 import * as triangleFunctions from "./triangle_functions.js";
 
 export function createIcosphere(physicsObject, centerPosition = [0, 0, 0], radius = 10, subdivisions = 0, mass = 1, friction = 100, surfaceStiffness = 100, centerStiffness = 100, damping = 0) {
-    const centralNode = physicsObject.addNode(centerPosition, mass * 2, 0);
+    const centralNode = physicsObject.addNode(centerPosition, mass * 2, 0, false);
     const nodes = [];
     const t = (1 + Math.sqrt(5)) / 2;
 
@@ -156,7 +156,7 @@ export function createCuboid(physicsObject, material, centerPosition, size, node
         [cx - hx, cy + hy, cz + hz],
     ];
 
-    const nodes = positions.map(position => physicsObject.addNode(position, nodeProperties.mass, nodeProperties.friction));
+    const nodes = positions.map(position => physicsObject.addNode(position, nodeProperties.mass, nodeProperties.friction, nodeProperties.collisionEnabled));
 
     for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
@@ -198,17 +198,17 @@ export function createDiskFromPoints(physicsObject, material, points, centerPosi
     let centroidY = 0;
     let centroidZ = 0;
 
-    for (const [nz, y] of points) {
-        centroidZ -= nz;
+    for (const [y, z] of points) {
         centroidY += y;
+        centroidZ += z;
     }
 
     centroidY /= points.length;
     centroidZ /= points.length;
 
     const sortedPoints = points.map(([y, z]) => ({ y, z, angle: Math.atan2(z - centroidZ, y - centroidY) })).sort((a, b) => a.angle - b.angle);
-    const centerNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + centroidY, centerPosition[2] + centroidZ], nodeProperties.mass, nodeProperties.friction);
-    const outerNodes = sortedPoints.map(({ y, z }) => physicsObject.addNode([centerPosition[0], centerPosition[1] + z, centerPosition[2] - y], nodeProperties.mass, nodeProperties.friction));
+    const centerNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + centroidZ, centerPosition[2] - centroidY], nodeProperties.mass, nodeProperties.friction, nodeProperties.collisionEnabled);
+    const outerNodes = sortedPoints.map(({ y, z }) => physicsObject.addNode([centerPosition[0], centerPosition[1] + z, centerPosition[2] - y], nodeProperties.mass, nodeProperties.friction, nodeProperties.collisionEnabled));
 
     for (let i = 0; i < outerNodes.length; i++) {
         const current = outerNodes[i];
@@ -274,19 +274,22 @@ export function createCircularCylinder(physicsObject, faceMaterial, edgeMaterial
 }
 
 
-export function createCar(physicsObject, baseMaterial, tireMaterial, rimMaterial, centerPosition, basePoints, baseThickness, frontWheelRadius, frontWheelWidth, rearWheelRadius, rearWheelWidth, frontAxleWidth, rearAxleWidth, frontAxleZOffset, rearAxleZOffset, baseYOffset, wheelOuterNodeCount, chassisNodeProperties, chassisSpringProperties, frontSuspensionProperties, rearSuspensionProperties, axleSpringProperties, tireNodeProperties, tireSpringProperties, baseNodeProperties, baseSpringProperties) {
+export function createVehicle(physicsObject, baseMaterial, tireMaterial, rimMaterial, centerPosition, basePoints, baseWidth, baseYOffset, axleData, chassisNodeProperties, chassisSpringProperties, baseNodeProperties, baseSpringProperties) {
     const basePosition = [centerPosition[0], centerPosition[1] + baseYOffset, centerPosition[2]];
-    const base = createCylinder(physicsObject, baseMaterial, baseMaterial, basePosition, basePoints, baseThickness, baseNodeProperties, baseSpringProperties);
-    const chassis = createCuboid(physicsObject, -1, [centerPosition[0], centerPosition[1] + baseYOffset + 0.2, centerPosition[2]], [(frontAxleWidth + rearAxleWidth) / 4, 0.4, Math.abs(rearAxleZOffset - frontAxleZOffset)], chassisNodeProperties, chassisSpringProperties);
+    const base = createCylinder(physicsObject, baseMaterial, baseMaterial, basePosition, basePoints, baseWidth, baseNodeProperties, baseSpringProperties);
     const baseNodes = [...base.centerNodes, ...base.outerNodes[0], ...base.outerNodes[1]];
+    const minAxleZ = Math.min(centerPosition[2], ...axleData.map(axle => axle.zOffset));
+    const maxAxleZ = Math.max(centerPosition[2], ...axleData.map(axle => axle.zOffset));
+    const averageAxleWidth = axleData.reduce((sum, axle) => sum + axle.trackWidth, 0) / axleData.length;
+    const chassis = createCuboid(physicsObject, -1, [centerPosition[0], centerPosition[1] + 0.2, centerPosition[2]], [averageAxleWidth / 2, 0.4, Math.abs(maxAxleZ - minAxleZ)], chassisNodeProperties, chassisSpringProperties);
     const chassisNodes = chassis.nodes;
-    const chassisCenterNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + baseYOffset + 0.8, centerPosition[2]], chassisNodeProperties.mass, 0);
+    const chassisCenterNode = physicsObject.addNode([centerPosition[0], centerPosition[1] + 0.8, centerPosition[2]], chassisNodeProperties.mass, 0, false);
 
     chassisNodes.push(chassisCenterNode);
 
-    function addWheel(xOffset, zOffset, wheelRadius, wheelWidth, suspensionProperties) {
+    function addWheel(xOffset, zOffset, wheelRadius, wheelWidth, tireNodeCount, suspensionProperties, tireNodeProperties, tireSpringProperties) {
         const wheelPosition = [centerPosition[0] + xOffset, centerPosition[1], centerPosition[2] + zOffset];
-        const wheel = createCircularCylinder(physicsObject, rimMaterial, tireMaterial, wheelPosition, wheelRadius, wheelWidth, wheelOuterNodeCount, tireNodeProperties, tireSpringProperties);
+        const wheel = createCircularCylinder(physicsObject, rimMaterial, tireMaterial, wheelPosition, wheelRadius, wheelWidth, tireNodeCount, tireNodeProperties, tireSpringProperties);
         const [centerNode1, centerNode2] = wheel.centerNodes;
         const [outerNodes1, outerNodes2] = wheel.outerNodes;
 
@@ -310,40 +313,39 @@ export function createCar(physicsObject, baseMaterial, tireMaterial, rimMaterial
         }
     }
 
-    const fl = addWheel(-frontAxleWidth * 0.5, frontAxleZOffset, frontWheelRadius, frontWheelWidth, frontSuspensionProperties);
-    const fr = addWheel(frontAxleWidth * 0.5, frontAxleZOffset, frontWheelRadius, frontWheelWidth, frontSuspensionProperties);
-    const rl = addWheel(-rearAxleWidth * 0.5, rearAxleZOffset, rearWheelRadius, rearWheelWidth, rearSuspensionProperties);
-    const rr = addWheel(rearAxleWidth * 0.5, rearAxleZOffset, rearWheelRadius, rearWheelWidth, rearSuspensionProperties);
+    const axles = [];
 
-    const axles = [[fl, fr], [rl, rr]];
-
-    for (const [wheelA, wheelB] of axles) {
-        const centerNodesA = [wheelA[0][0], wheelA[1][0]];
-        const centerNodesB = [wheelB[0][0], wheelB[1][0]];
-        const outerNodesA = [wheelA[0][1], wheelA[1][1]];
-        const outerNodesB = [wheelB[0][1], wheelB[1][1]];
+    for (const axle of axleData) {
+        const leftWheel = addWheel(-axle.trackWidth * 0.5, axle.zOffset, axle.wheelRadius, axle.wheelWidth, axle.tireNodeCount, axle.suspensionProperties, axle.tireNodeProperties, axle.tireSpringProperties);
+        const rightWheel = addWheel(axle.trackWidth * 0.5, axle.zOffset, axle.wheelRadius, axle.wheelWidth, axle.tireNodeCount, axle.suspensionProperties, axle.tireNodeProperties, axle.tireSpringProperties);
+        const centerNodesA = [leftWheel[0][0], leftWheel[1][0]];
+        const centerNodesB = [rightWheel[0][0], rightWheel[1][0]];
+        const outerNodesA = [leftWheel[0][1], leftWheel[1][1]];
+        const outerNodesB = [rightWheel[0][1], rightWheel[1][1]];
 
         for (const centerNode of centerNodesA) {
             for (const outerNodes of outerNodesB) {
                 for (const outerNode of outerNodes) {
-                    physicsObject.addSpring(centerNode, outerNode, axleSpringProperties.stiffness, axleSpringProperties.damping);
+                    physicsObject.addSpring(centerNode, outerNode, axle.axleSpringProperties.stiffness, axle.axleSpringProperties.damping);
                 }
             }
 
-            physicsObject.addSpring(centerNode, centerNodesB[0], axleSpringProperties.stiffness, axleSpringProperties.damping);
-            physicsObject.addSpring(centerNode, centerNodesB[1], axleSpringProperties.stiffness, axleSpringProperties.damping);
+            physicsObject.addSpring(centerNode, centerNodesB[0], axle.axleSpringProperties.stiffness, axle.axleSpringProperties.damping);
+            physicsObject.addSpring(centerNode, centerNodesB[1], axle.axleSpringProperties.stiffness, axle.axleSpringProperties.damping);
         }
 
         for (const centerNode of centerNodesB) {
             for (const outerNodes of outerNodesA) {
                 for (const outerNode of outerNodes) {
-                    physicsObject.addSpring(centerNode, outerNode, axleSpringProperties.stiffness, axleSpringProperties.damping);
+                    physicsObject.addSpring(centerNode, outerNode, axle.axleSpringProperties.stiffness, axle.axleSpringProperties.damping);
                 }
             }
         }
+
+        axles.push({ leftWheel, rightWheel });
     }
 
-    return { chassis: chassisNodes, fl, fr, rl, rr };
+    return { chassis: chassisNodes, axles };
 }
 
 export function applyDiskSpin(physicsObject, disk, targetSpeed = 0, strength = 1) {
